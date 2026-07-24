@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+if [[ ! -d "${PWD}/config" ]]; then
+    mkdir -p "${PWD}/config"
+    hass --config "${PWD}/config" --script ensure_config
+fi
+
+export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}${PWD}"
+
+hass --config "${PWD}/config" --debug

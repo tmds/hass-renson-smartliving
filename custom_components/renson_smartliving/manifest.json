@@ -1,0 +1,12 @@
+{
+  "domain": "renson_smartliving",
+  "name": "Renson Smart Living",
+  "codeowners": ["@tmds"],
+  "config_flow": true,
+  "documentation": "https://github.com/tmds/hass-renson-smartliving",
+  "issue_tracker": "https://github.com/tmds/hass-renson-smartliving/issues",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.1.0"
+}
