@@ -15,6 +15,9 @@ from custom_components.renson_smartliving.fan import (
 from custom_components.renson_smartliving.light import (
     create_entities as light_create,
 )
+from custom_components.renson_smartliving.scene import (
+    create_entities as scene_create,
+)
 from custom_components.renson_smartliving.sensor import (
     create_entities as sensor_create,
 )
@@ -163,3 +166,39 @@ async def test_event_creates_all_named_inputs(
     entities = event_create(coordinator)
     ids = [e._input_id for e in entities]
     assert ids == [0, 2]
+
+
+async def test_scene_creates_visible_group_actions(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    coordinator.group_actions = [
+        {"id": 5, "name": "All Off", "show_in_app": True},
+        {"id": 12, "name": "Movie", "show_in_app": True},
+    ]
+    entities = scene_create(coordinator)
+    ids = [e._group_action_id for e in entities]
+    assert ids == [5, 12]
+
+
+async def test_scene_skips_unnamed(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    coordinator.group_actions = [
+        {"id": 0, "name": "", "show_in_app": True},
+        {"id": 1, "name": "Named", "show_in_app": True},
+    ]
+    entities = scene_create(coordinator)
+    assert len(entities) == 1
+    assert entities[0]._group_action_id == 1
+
+
+async def test_scene_includes_hidden(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    coordinator.group_actions = [
+        {"id": 0, "name": "Hidden", "show_in_app": False},
+        {"id": 1, "name": "Visible", "show_in_app": True},
+    ]
+    entities = scene_create(coordinator)
+    ids = [e._group_action_id for e in entities]
+    assert ids == [0, 1]

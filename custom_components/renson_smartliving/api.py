@@ -17,6 +17,7 @@ WS_SUBSCRIPTION_TYPES = [
     "SENSOR_CONTROL",
     "SHUTTER_CONTROL",
     "ROOM_CONTROL",
+    "GROUP_ACTION_CONTROL",
     # System (flushed by sync/control)
     "VERSION",
     "PLATFORM_DETAILS",
@@ -187,6 +188,9 @@ class OpenMoticsClient:
 
     async def shutter_stop(self, shutter_id: int) -> dict[str, Any]:
         return await self.get("/do_shutter_stop", {"id": shutter_id})
+
+    async def do_group_action(self, group_action_id: int) -> dict[str, Any]:
+        return await self.post("/do_group_action", {"group_action_id": group_action_id})
 
     # -- WebSocket --
 

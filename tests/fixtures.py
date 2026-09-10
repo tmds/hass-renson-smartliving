@@ -29,6 +29,14 @@ VERSION = {
     "master": "4.5.6",
 }
 
+SAMPLE_GROUP_ACTIONS = [
+    {"id": 5, "name": "All Off", "show_in_app": True},
+    {"id": 12, "name": "Movie Mode", "show_in_app": True},
+    {"id": 20, "name": "", "show_in_app": True},
+    {"id": 30, "name": "Internal", "show_in_app": False},
+    {"id": 40, "name": "Hidden", "show_in_app": False},
+]
+
 SAMPLE_CONFIG = {
     "OUTPUT_CONTROL": [
         {
@@ -61,6 +69,7 @@ SAMPLE_CONFIG = {
     "INPUT_CONTROL": [
         {"id": 0, "name": "Button", "room": 1},
     ],
+    "GROUP_ACTION_CONTROL": SAMPLE_GROUP_ACTIONS,
     "ROOM_CONTROL": [
         {"id": 1, "name": "Kitchen", "floor": 0},
     ],

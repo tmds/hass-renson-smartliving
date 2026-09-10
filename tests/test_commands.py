@@ -8,6 +8,7 @@ from custom_components.renson_smartliving.coordinator import OpenMoticsCoordinat
 from custom_components.renson_smartliving.cover import OpenMoticsCover
 from custom_components.renson_smartliving.fan import OpenMoticsFan
 from custom_components.renson_smartliving.light import OpenMoticsLight
+from custom_components.renson_smartliving.scene import OpenMoticsScene
 from custom_components.renson_smartliving.switch import OpenMoticsSwitch
 from tests.fixtures import make_naming
 
@@ -31,6 +32,14 @@ def switch(coordinator: OpenMoticsCoordinator) -> OpenMoticsSwitch:
 def fan(coordinator: OpenMoticsCoordinator) -> OpenMoticsFan:
     return OpenMoticsFan(
         coordinator=coordinator, naming=make_naming("fan", name="F"), output_id=5,
+    )
+
+
+@pytest.fixture
+def scene(coordinator: OpenMoticsCoordinator) -> OpenMoticsScene:
+    return OpenMoticsScene(
+        coordinator=coordinator, naming=make_naming("scene", name="All Off"),
+        group_action_id=5,
     )
 
 
@@ -121,3 +130,11 @@ async def test_cover_close(cover: OpenMoticsCover, coordinator: OpenMoticsCoordi
 async def test_cover_stop(cover: OpenMoticsCover, coordinator: OpenMoticsCoordinator) -> None:
     await cover.async_stop_cover()
     coordinator.client.shutter_stop.assert_called_once_with(2)
+
+
+# -- Scene commands --
+
+
+async def test_scene_activate(scene: OpenMoticsScene, coordinator: OpenMoticsCoordinator) -> None:
+    await scene.async_activate()
+    coordinator.client.do_group_action.assert_called_once_with(5)
