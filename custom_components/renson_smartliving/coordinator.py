@@ -123,6 +123,7 @@ class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.shutters: list[dict[str, Any]] = []
         self.sensors: list[dict[str, Any]] = []
         self.inputs: list[dict[str, Any]] = []
+        self.group_actions: list[dict[str, Any]] = []
         self._config_loaded = False
         self._output_states: dict[int, dict[str, Any]] = {}
         self._shutter_states: dict[int, dict[str, Any]] = {}
@@ -191,6 +192,7 @@ class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.shutters = config.get("SHUTTER_CONTROL", [])
         self.sensors = config.get("SENSOR_CONTROL", [])
         self.inputs = config.get("INPUT_CONTROL", [])
+        self.group_actions = config.get("GROUP_ACTION_CONTROL", [])
         self._create_areas(config)
 
     def _create_areas(self, config: dict[str, Any]) -> None:

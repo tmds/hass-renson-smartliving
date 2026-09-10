@@ -11,7 +11,7 @@ from custom_components.renson_smartliving.sync import (
     EXPECTED_CONTROL_EVENTS,
     SyncLoop,
 )
-from tests.fixtures import PLATFORM_DETAILS, SAMPLE_CONFIG, SAMPLE_OUTPUT_STATUS, SAMPLE_SHUTTER_STATUS, VERSION
+from tests.fixtures import PLATFORM_DETAILS, SAMPLE_CONFIG, SAMPLE_GROUP_ACTIONS, SAMPLE_OUTPUT_STATUS, SAMPLE_SHUTTER_STATUS, VERSION
 
 
 def _make_ws_msg(event_type: str, data: dict | None = None) -> MagicMock:
@@ -31,6 +31,7 @@ def _make_config_messages() -> list[MagicMock]:
         _make_ws_msg("SENSOR_CONTROL", {"control": [{"id": 0, "name": "Temp"}]}),
         _make_ws_msg("SHUTTER_CONTROL", {"control": [{"id": 0, "name": "Blinds"}]}),
         _make_ws_msg("ROOM_CONTROL", {"control": [{"id": 1, "name": "Kitchen"}]}),
+        _make_ws_msg("GROUP_ACTION_CONTROL", {"control": SAMPLE_GROUP_ACTIONS}),
         _make_ws_msg("VERSION", VERSION),
         _make_ws_msg("PLATFORM_DETAILS", PLATFORM_DETAILS),
     ]

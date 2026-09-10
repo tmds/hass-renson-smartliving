@@ -16,8 +16,9 @@ The OpenMotics "entities" are mapped as follows to Home Assistant entities:
 | Output (relay module, not Light/ShutterRelay) | Switch |
 | Sensor (temperature, humidity, co2, power) | Sensor |
 | Input | Event (press/release) |
+| Group Action | Scene |
 
-The entity ids are formatted: `{hass_platform}.{room}_{name}`, for example, `light.living_eettafel`. When the room name and entity name match, the room name is omitted. Sensor names are prefixed with the type of sensor, for example: `sensor.temp_bureau`.
+The entity ids are formatted: `{hass_platform}.{room}_{name}`, for example, `light.living_eettafel`. When the room name and entity name match, the room name is omitted. Sensor names are prefixed with the type of sensor, for example: `sensor.temp_bureau`. Group action scenes are prefixed with `ga_`, for example: `scene.ga_all_off`.
 
 When the names/rooms change in the smart living system, the entities provided by the integration will change to match. Stale entities are automatically removed.
 
