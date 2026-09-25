@@ -17,12 +17,14 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 
-SIGNAL_CONFIG_LOADED = f"{DOMAIN}_config_loaded"
+def signal_config_loaded(entry_id: str) -> str:
+    """Dispatcher signal that config is loaded for a specific entry."""
+    return f"{DOMAIN}_config_loaded_{entry_id}"
 
 
-def signal_entity_event(event_type: str, om_id: int) -> str:
+def signal_entity_event(event_type: str, om_id: int, entry_id: str) -> str:
     """Dispatcher signal for a specific entity's real-time event."""
-    return f"{DOMAIN}_event_{event_type}_{om_id}"
+    return f"{DOMAIN}_event_{event_type}_{om_id}_{entry_id}"
 
 
 @dataclass
@@ -213,7 +215,9 @@ class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.async_set_updated_data(data)
         if not self._config_loaded:
             self._config_loaded = True
-            async_dispatcher_send(self.hass, SIGNAL_CONFIG_LOADED)
+            async_dispatcher_send(
+                self.hass, signal_config_loaded(self.entry.entry_id)
+            )
 
     def _update_initial_state(self, data: dict[str, Any]) -> None:
         """Store initial output and shutter state from REST calls."""
@@ -261,14 +265,17 @@ class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             input_id = event_data["id"]
             async_dispatcher_send(
                 self.hass,
-                signal_entity_event(event_type, input_id),
+                signal_entity_event(
+                    event_type, input_id, self.entry.entry_id
+                ),
                 event_data.get("status", False),
             )
 
     def _signal_entity(self, event_type: str, om_id: int) -> None:
         """Signal the entity affected by an event."""
         async_dispatcher_send(
-            self.hass, signal_entity_event(event_type, om_id)
+            self.hass,
+            signal_entity_event(event_type, om_id, self.entry.entry_id),
         )
 
     def get_output_state(self, output_id: int) -> dict[str, Any] | None:

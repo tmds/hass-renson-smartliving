@@ -28,7 +28,7 @@ async def test_apply_output_change(
     state = coordinator.get_output_state(5)
     assert state == {"on": True, "dimmer": 80}
     mock_dispatcher.assert_called_once_with(
-        coordinator.hass, signal_entity_event("OUTPUT_CHANGE", 5)
+        coordinator.hass, signal_entity_event("OUTPUT_CHANGE", 5, coordinator.entry.entry_id)
     )
 
 
@@ -44,7 +44,7 @@ async def test_apply_shutter_change(
     state = coordinator.get_shutter_state(2)
     assert state == {"state": "GOING_UP", "position": 30}
     mock_dispatcher.assert_called_once_with(
-        coordinator.hass, signal_entity_event("SHUTTER_CHANGE", 2)
+        coordinator.hass, signal_entity_event("SHUTTER_CHANGE", 2, coordinator.entry.entry_id)
     )
 
 
@@ -59,7 +59,7 @@ async def test_apply_sensor_change(
 
     assert coordinator.get_sensor_value(7) == 22.5
     mock_dispatcher.assert_called_once_with(
-        coordinator.hass, signal_entity_event("SENSOR_CHANGE", 7)
+        coordinator.hass, signal_entity_event("SENSOR_CHANGE", 7, coordinator.entry.entry_id)
     )
 
 
@@ -73,7 +73,7 @@ async def test_apply_input_change(
     coordinator.apply_event(event)
 
     mock_dispatcher.assert_called_once_with(
-        coordinator.hass, signal_entity_event("INPUT_CHANGE", 3), True
+        coordinator.hass, signal_entity_event("INPUT_CHANGE", 3, coordinator.entry.entry_id), True
     )
 
 
