@@ -24,9 +24,25 @@ PLATFORM_DETAILS = {
     "master_serial": "SN123456",
 }
 
+PLATFORM_DETAILS_V2 = {
+    "mac_address": "94:A9:A8:82:3A:36",
+    "platform": "CLASSIC",
+    "hardware": "BBB",
+    "hardware_serial": None,
+    "master_serial": None,
+}
+
 VERSION = {
     "gateway": "1.2.3",
     "master": "4.5.6",
+}
+
+VERSION_REST = {
+    "success": True,
+    "version": "3.11.1",
+    "gateway": "3.11.1",
+    "master": "3.143.131",
+    "python_version": "3.8.12",
 }
 
 SAMPLE_GROUP_ACTIONS = [

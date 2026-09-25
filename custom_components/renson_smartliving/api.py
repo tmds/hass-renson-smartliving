@@ -151,6 +151,9 @@ class OpenMoticsClient:
     async def get_platform_details(self) -> dict[str, Any]:
         return await self.get("/get_platform_details")
 
+    async def get_version(self) -> dict[str, Any]:
+        return await self.get("/get_version")
+
     # -- Status (needed for initial state) --
 
     async def get_output_status(self) -> list[dict[str, Any]]:
