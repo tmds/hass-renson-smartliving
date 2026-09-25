@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from custom_components.renson_smartliving.coordinator import (
+    GatewayInfo,
     OpenMoticsCoordinator,
     RoomInfo,
     _expand_truncated_name,
 )
+from tests.fixtures import PLATFORM_DETAILS, PLATFORM_DETAILS_V2, VERSION, VERSION_REST
 
 
 async def test_naming_room_equals_name(coordinator: OpenMoticsCoordinator) -> None:
@@ -84,3 +86,20 @@ async def test_naming_entity_id_prefix(coordinator: OpenMoticsCoordinator) -> No
 
     assert naming.friendly_name == "Slaapkamer Ouders"
     assert naming.suggested_entity_id == "sensor.temp_slaapkamer_ouders"
+
+
+def test_gateway_info_v2_null_master_serial() -> None:
+    """V2 gateways send master_serial=None; it should become an empty string."""
+    info = GatewayInfo.from_config(PLATFORM_DETAILS_V2, VERSION_REST)
+    assert info.master_serial == ""
+    assert info.platform == "CLASSIC"
+    assert info.model == "CLASSIC"
+    assert info.gateway_version == "3.11.1"
+    assert info.master_version == "3.143.131"
+
+
+def test_gateway_info_v3_master_serial() -> None:
+    """V3 gateways send a real master_serial string."""
+    info = GatewayInfo.from_config(PLATFORM_DETAILS, VERSION)
+    assert info.master_serial == "SN123456"
+    assert info.model == "BRAIN+"

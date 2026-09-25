@@ -23,8 +23,13 @@ EXPECTED_CONTROL_EVENTS = {
     "SHUTTER_CONTROL",
     "ROOM_CONTROL",
     "GROUP_ACTION_CONTROL",
-    "VERSION",
     "PLATFORM_DETAILS",
+}
+
+# V2 (CLASSIC) gateways don't emit VERSION over WebSocket;
+# fetched via REST fallback in _sync() when missing.
+OPTIONAL_CONTROL_EVENTS = {
+    "VERSION",
 }
 
 CHANGE_EVENTS = {
@@ -107,6 +112,13 @@ class SyncLoop:
                 },
             )
 
+            if "VERSION" not in config:
+                v = await self._client.get_version()
+                config["VERSION"] = {
+                    "gateway": v.get("gateway", ""),
+                    "master": v.get("master", ""),
+                }
+
             # WS INPUT_CONTROL only includes in_use inputs; fetch via
             # REST to also include inputs not in_use on the gateway,
             # as the user may want to use them for HA automations.
@@ -163,7 +175,7 @@ class SyncLoop:
                     _WS_LOGGER.debug("WS <- %s", event)
                     event_type = event.get("type", "")
 
-                    if event_type in EXPECTED_CONTROL_EVENTS:
+                    if event_type in EXPECTED_CONTROL_EVENTS | OPTIONAL_CONTROL_EVENTS:
                         data = event.get("data", {})
                         config[event_type] = data.get("control", data)
                         received.add(event_type)

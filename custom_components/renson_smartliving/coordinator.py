@@ -43,14 +43,14 @@ class GatewayInfo:
         platform_details: dict[str, Any],
         version: dict[str, Any],
     ) -> GatewayInfo:
-        mac = platform_details.get("mac_address", "")
-        platform = platform_details.get("platform", "")
+        mac = platform_details.get("mac_address") or ""
+        platform = platform_details.get("platform") or ""
         return cls(
             mac_address=mac,
             device_id=mac.replace(":", ""),
             platform=platform,
             model=platform.replace("_PLUS", "+"),
-            master_serial=platform_details.get("master_serial", ""),
+            master_serial=platform_details.get("master_serial") or "",
             gateway_version=version.get("gateway", ""),
             master_version=version.get("master", ""),
         )

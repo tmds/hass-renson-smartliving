@@ -11,7 +11,7 @@ from custom_components.renson_smartliving.sync import (
     EXPECTED_CONTROL_EVENTS,
     SyncLoop,
 )
-from tests.fixtures import PLATFORM_DETAILS, SAMPLE_CONFIG, SAMPLE_GROUP_ACTIONS, SAMPLE_OUTPUT_STATUS, SAMPLE_SHUTTER_STATUS, VERSION
+from tests.fixtures import PLATFORM_DETAILS, PLATFORM_DETAILS_V2, SAMPLE_CONFIG, SAMPLE_GROUP_ACTIONS, SAMPLE_OUTPUT_STATUS, SAMPLE_SHUTTER_STATUS, VERSION, VERSION_REST
 
 
 def _make_ws_msg(event_type: str, data: dict | None = None) -> MagicMock:
@@ -71,6 +71,7 @@ def _make_client() -> AsyncMock:
     client.get_input_configurations = AsyncMock(
         return_value=SAMPLE_CONFIG["INPUT_CONTROL"]
     )
+    client.get_version = AsyncMock(return_value=VERSION_REST)
     client.close = AsyncMock()
     return client
 
@@ -201,3 +202,55 @@ async def test_full_sync_sequence() -> None:
     client.get_shutter_status.assert_called_once()
 
     assert call_order == ["config", "full_update"]
+
+
+def _make_v2_config_messages() -> list[MagicMock]:
+    """Build control messages for a v2 (CLASSIC) gateway — no VERSION event."""
+    return [
+        _make_ws_msg("OUTPUT_CONTROL", {"control": [{"id": 0, "name": "Light"}]}),
+        _make_ws_msg("INPUT_CONTROL", {"control": [{"id": 0, "name": "Button"}]}),
+        _make_ws_msg("SENSOR_CONTROL", {"control": []}),
+        _make_ws_msg("SHUTTER_CONTROL", {"control": []}),
+        _make_ws_msg("ROOM_CONTROL", {"control": [{"id": 1, "name": "Kitchen"}]}),
+        _make_ws_msg("GROUP_ACTION_CONTROL", {"control": SAMPLE_GROUP_ACTIONS}),
+        _make_ws_msg("PLATFORM_DETAILS", PLATFORM_DETAILS_V2),
+    ]
+
+
+async def test_v2_sync_without_ws_version() -> None:
+    """V2 gateways don't send VERSION over WS; version is fetched via REST."""
+    ws = FakeWS(_make_v2_config_messages())
+    client = _make_client()
+    client.connect_events.return_value = ws
+
+    on_config = MagicMock()
+    on_full_update = MagicMock()
+
+    loop = SyncLoop(client, on_config, on_full_update, MagicMock())
+    loop.start()
+    await asyncio.sleep(0.1)
+    await loop.stop()
+
+    on_config.assert_called_once()
+    config = on_config.call_args[0][0]
+    assert "VERSION" in config
+    assert config["VERSION"]["gateway"] == "3.11.1"
+    client.get_version.assert_called_once()
+
+
+async def test_v3_sync_with_ws_version() -> None:
+    """V3 gateways send VERSION over WS; REST get_version is not called."""
+    ws = FakeWS(_make_config_messages())
+    client = _make_client()
+    client.connect_events.return_value = ws
+
+    on_config = MagicMock()
+
+    loop = SyncLoop(client, on_config, MagicMock(), MagicMock())
+    loop.start()
+    await asyncio.sleep(0.1)
+    await loop.stop()
+
+    config = on_config.call_args[0][0]
+    assert config["VERSION"]["gateway"] == "1.2.3"
+    client.get_version.assert_not_called()
