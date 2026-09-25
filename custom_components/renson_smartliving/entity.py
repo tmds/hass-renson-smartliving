@@ -65,7 +65,9 @@ class OpenMoticsEntity(CoordinatorEntity[OpenMoticsCoordinator]):
                 async_dispatcher_connect(
                     self.hass,
                     signal_entity_event(
-                        self._ws_change_type, self._om_id
+                        self._ws_change_type,
+                        self._om_id,
+                        self.coordinator.entry.entry_id,
                     ),
                     self._handle_om_event,
                 )

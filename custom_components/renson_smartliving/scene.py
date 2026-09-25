@@ -9,7 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 if TYPE_CHECKING:
     from . import OpenMoticsConfigEntry
-from .coordinator import SIGNAL_CONFIG_LOADED, EntityNaming, OpenMoticsCoordinator
+from .coordinator import EntityNaming, OpenMoticsCoordinator, signal_config_loaded
 from .entity import OpenMoticsEntity, remove_stale_entities
 
 
@@ -29,7 +29,7 @@ async def async_setup_entry(
 
     entry.async_on_unload(
         async_dispatcher_connect(
-            hass, SIGNAL_CONFIG_LOADED, _on_config_loaded
+            hass, signal_config_loaded(entry.entry_id), _on_config_loaded
         )
     )
 
