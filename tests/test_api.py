@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 
 from custom_components.renson_smartliving.api import (
@@ -120,3 +121,65 @@ async def test_read_response_success_false() -> None:
 
     with pytest.raises(OpenMoticsError, match="Not found"):
         await OpenMoticsClient._read_response("/path", resp)
+
+
+async def test_request_retries_on_transient_error(
+    client: OpenMoticsClient, mock_session: MagicMock
+) -> None:
+    """Transient connection errors are retried with backoff."""
+    client._token = "valid"
+
+    ok_resp = _mock_response(200, {"success": True, "value": 1})
+
+    call_count = 0
+
+    def request_side_effect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count <= 2:
+            raise aiohttp.ClientConnectorError(
+                connection_key=MagicMock(), os_error=OSError("Connection reset")
+            )
+        return ok_resp
+
+    mock_session.request = MagicMock(side_effect=request_side_effect)
+
+    with patch("custom_components.renson_smartliving.api.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        result = await client.get("/test")
+
+    assert result["value"] == 1
+    assert call_count == 3
+    assert mock_sleep.await_count == 2
+    mock_sleep.assert_any_await(0.1)
+    mock_sleep.assert_any_await(0.2)
+
+
+async def test_request_gives_up_after_max_retries(
+    client: OpenMoticsClient, mock_session: MagicMock
+) -> None:
+    """After exhausting retries, raises OpenMoticsError."""
+    client._token = "valid"
+
+    mock_session.request = MagicMock(
+        side_effect=aiohttp.ServerDisconnectedError()
+    )
+
+    with patch("custom_components.renson_smartliving.api.asyncio.sleep", new_callable=AsyncMock):
+        with pytest.raises(OpenMoticsError, match="Failed after 4 attempts"):
+            await client.get("/test")
+
+    assert mock_session.request.call_count == 4
+
+
+async def test_request_no_retry_on_non_transient_error(
+    client: OpenMoticsClient, mock_session: MagicMock
+) -> None:
+    """Non-transient errors (e.g. HTTP 500) are not retried."""
+    client._token = "valid"
+
+    mock_session.request = MagicMock(return_value=_mock_response(500, {}))
+
+    with pytest.raises(OpenMoticsError, match="HTTP 500"):
+        await client.get("/broken")
+
+    mock_session.request.assert_called_once()
