@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import ssl
 from typing import Any
@@ -91,13 +92,48 @@ class OpenMoticsClient:
                 )
             self._token = data["token"]
 
+    _TRANSIENT_EXCEPTIONS = (
+        aiohttp.ClientConnectorError,
+        aiohttp.ServerDisconnectedError,
+        asyncio.TimeoutError,
+    )
+    _MAX_RETRIES = 3
+    _RETRY_BACKOFF = (0.1, 0.2, 0.5)
+
     async def _request(
-        self, method: str, path: str, params: dict[str, Any] | None = None
+        self, method: str, path: str, params: dict[str, Any] | None = None,
+        *, retry: bool = True,
     ) -> dict[str, Any]:
-        """Make an authenticated request, re-login and retry on 401 (token expiry)."""
+        """Make an authenticated request with retry on transient failures."""
         if self._token is None:
             await self.login()
 
+        if not retry:
+            return await self._do_request(method, path, params)
+
+        last_exc: Exception | None = None
+        for attempt in range(1 + self._MAX_RETRIES):
+            try:
+                return await self._do_request(method, path, params)
+            except self._TRANSIENT_EXCEPTIONS as exc:
+                last_exc = exc
+                if attempt < self._MAX_RETRIES:
+                    delay = self._RETRY_BACKOFF[min(attempt, len(self._RETRY_BACKOFF) - 1)]
+                    _LOGGER.warning(
+                        "Transient error on %s %s (attempt %d/%d), "
+                        "retrying in %.1fs: %s",
+                        method, path, attempt + 1,
+                        1 + self._MAX_RETRIES, delay, exc,
+                    )
+                    await asyncio.sleep(delay)
+        raise OpenMoticsError(
+            f"Failed after {1 + self._MAX_RETRIES} attempts: {last_exc}"
+        ) from last_exc
+
+    async def _do_request(
+        self, method: str, path: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Single attempt: send request, handle 401 re-auth."""
         session = self._get_session()
         url = f"{self._base_url}{path}"
         headers = {"Authorization": f"Bearer {self._token}"}
@@ -136,9 +172,9 @@ class OpenMoticsClient:
         return await self._request("GET", path, params)
 
     async def post(
-        self, path: str, params: dict[str, Any] | None = None
+        self, path: str, params: dict[str, Any] | None = None, *, idempotent: bool
     ) -> dict[str, Any]:
-        return await self._request("POST", path, params)
+        return await self._request("POST", path, params, retry=idempotent)
 
     # -- Sync --
 
@@ -181,7 +217,7 @@ class OpenMoticsClient:
             params["dimmer"] = dimmer
         if timer is not None:
             params["timer"] = timer
-        return await self.post("/set_output", params)
+        return await self.post("/set_output", params, idempotent=True)
 
     async def shutter_up(self, shutter_id: int) -> dict[str, Any]:
         return await self.get("/do_shutter_up", {"id": shutter_id})
@@ -193,7 +229,7 @@ class OpenMoticsClient:
         return await self.get("/do_shutter_stop", {"id": shutter_id})
 
     async def do_group_action(self, group_action_id: int) -> dict[str, Any]:
-        return await self.post("/do_group_action", {"group_action_id": group_action_id})
+        return await self.post("/do_group_action", {"group_action_id": group_action_id}, idempotent=False)
 
     # -- WebSocket --
 
