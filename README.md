@@ -33,12 +33,6 @@ When the names/rooms change in the smart living system, the entities provided by
 5. Click **Download** on the Renson Smart Living card
 6. Restart Home Assistant
 
-### Manual
-
-1. Download the latest release from [GitHub](https://github.com/tmds/hass-renson-smartliving/releases)
-2. Copy the `custom_components/renson_smartliving` folder into your `config/custom_components/` directory
-3. Restart Home Assistant
-
 ## Configuration
 
 The integration is configured via the UI. You will need:
