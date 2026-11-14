@@ -58,11 +58,16 @@ async def async_setup_entry(
     runtime_data = OpenMoticsRuntimeData(coordinator=coordinator)
     entry.runtime_data = runtime_data
 
+    def _on_availability_change(connected: bool) -> None:
+        coordinator.connected = connected
+        coordinator.async_set_updated_data(coordinator.data)
+
     runtime_data.sync_loop = SyncLoop(
         client=client,
         on_config=coordinator.handle_config,
         on_full_update=coordinator.handle_full_update,
         on_event=coordinator.apply_event,
+        on_availability_change=_on_availability_change,
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

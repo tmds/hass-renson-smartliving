@@ -2,17 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
 import aiohttp
 
-from .api import OpenMoticsClient
+from .api import REQUEST_TIMEOUT, OpenMoticsClient, OpenMoticsError
 
 _LOGGER = logging.getLogger(__name__)
 _WS_LOGGER = logging.getLogger("custom_components.renson_smartliving.ws")
 
-INITIAL_BACKOFF = 5
+RECONNECT_TIMEOUT = 5
+INITIAL_BACKOFF = 10
 MAX_BACKOFF = 300
 BACKOFF_FACTOR = 2
 CONFIG_PHASE_TIMEOUT = 30
@@ -43,8 +45,8 @@ CHANGE_EVENTS = {
 class SyncLoop:
     """Manages the full sync lifecycle for one OpenMotics gateway.
 
-    Phases: login → WebSocket config collection → entity CRUD →
-    initial state → replay buffered changes → active phase.
+    Login → WebSocket config collection → entity CRUD →
+    initial state → replay buffered changes → active.
     """
 
     def __init__(
@@ -53,11 +55,16 @@ class SyncLoop:
         on_config: Callable[[dict[str, Any]], None],
         on_full_update: Callable[[dict[str, Any]], None],
         on_event: Callable[[dict[str, Any]], None],
+        on_availability_change: Callable[[bool], None] | None = None,
     ) -> None:
         self._client = client
         self._on_config = on_config
         self._on_full_update = on_full_update
         self._on_event = on_event
+        self._on_availability_change = on_availability_change
+        self._backoff: float = INITIAL_BACKOFF
+        self._sync_active: bool = False
+        self._available: bool = False
         self._task: asyncio.Task[None] | None = None
 
     def start(self) -> None:
@@ -75,33 +82,68 @@ class SyncLoop:
             self._task = None
         await self._client.close()
 
+    def _set_available(self, available: bool) -> None:
+        if self._available == available:
+            return
+        self._available = available
+        if self._on_availability_change is not None:
+            self._on_availability_change(available)
+
     async def _run(self) -> None:
-        backoff = INITIAL_BACKOFF
         while True:
+            started = time.monotonic()
             try:
                 await self._sync()
-                backoff = INITIAL_BACKOFF
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                _LOGGER.exception(
-                    "Sync failed for %s, retrying in %ds",
-                    self._client.host,
-                    backoff,
-                )
-                await asyncio.sleep(backoff)
-                backoff = min(backoff * BACKOFF_FACTOR, MAX_BACKOFF)
+            except Exception as exc:
+                if not self._sync_active:
+                    self._set_available(False)
+                elapsed = time.monotonic() - started
+                remaining = max(0, self._backoff - elapsed)
+                if isinstance(exc, (ConnectionError, TimeoutError, OpenMoticsError, aiohttp.ClientError)):
+                    reason = str(exc) or type(exc).__name__
+                    _LOGGER.error(
+                        "Sync failed for %s: %s",
+                        self._client.host,
+                        reason,
+                    )
+                else:
+                    _LOGGER.exception(
+                        "Sync failed for %s",
+                        self._client.host,
+                    )
+                if remaining > 0:
+                    _LOGGER.info(
+                        "Retrying %s in %ds",
+                        self._client.host,
+                        remaining,
+                    )
+                    await asyncio.sleep(remaining)
 
     async def _sync(self) -> None:
-        _LOGGER.info("Connecting to %s", self._client.host)
+        self._sync_active = False
+        self._client.reset_session()
 
-        await self._client.login()
+        login_timeout = RECONNECT_TIMEOUT if self._available else None
+        _LOGGER.info(
+            "Connecting to %s (timeout: %ds)",
+            self._client.host,
+            login_timeout or REQUEST_TIMEOUT,
+        )
+        try:
+            await self._client.login(timeout=login_timeout)
+        except Exception:
+            self._backoff = min(self._backoff * BACKOFF_FACTOR, MAX_BACKOFF)
+            raise
+        self._backoff = INITIAL_BACKOFF
         ws = await self._client.connect_events()
+        _LOGGER.info("Connected to %s, syncing state", self._client.host)
 
         try:
             await self._client.trigger_sync()
 
-            # Phase 1: collect config, buffer change events
+            # Collect config, buffer change events
             config, buffered = await self._collect_config(ws)
             _LOGGER.info(
                 "Retrieved configuration from %s: %s",
@@ -126,17 +168,22 @@ class SyncLoop:
                 await self._client.get_input_configurations()
             )
 
-            # Phase 2: entity/room CRUD
+            # Entity/room CRUD
             self._on_config(config)
 
-            # Phase 3: initial state
+            # Current state
             output_status = await self._client.get_output_status()
             shutter_status = await self._client.get_shutter_status()
             config["output_status"] = output_status
             config["shutter_status"] = shutter_status
             self._on_full_update(config)
 
-            # Phase 4: replay buffered change events
+        except BaseException:
+            await ws.close()
+            raise
+
+        try:
+            # Replay buffered change events
             for event in buffered:
                 self._on_event(event)
             if buffered:
@@ -146,7 +193,10 @@ class SyncLoop:
                     self._client.host,
                 )
 
-            # Phase 5: active — process events in real-time
+            # Setup complete — mark entities available.
+            self._sync_active = True
+            self._set_available(True)
+            # Process events in real-time
             await self._active_phase(ws)
         finally:
             await ws.close()
@@ -184,6 +234,8 @@ class SyncLoop:
 
                     elif event_type in CHANGE_EVENTS:
                         buffered.append(event)
+
+            raise ConnectionError("WebSocket closed during config phase")
 
         except TimeoutError:
             missing = EXPECTED_CONTROL_EVENTS - received

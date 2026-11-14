@@ -24,7 +24,7 @@ When the names/rooms change in the smart living system, the entities provided by
 
 ## Installation
 
-### HACS (recommended)
+### HACS
 
 1. Open HACS in Home Assistant
 2. Go to **Integrations**

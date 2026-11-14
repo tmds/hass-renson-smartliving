@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
@@ -183,3 +184,41 @@ async def test_request_no_retry_on_non_transient_error(
         await client.get("/broken")
 
     mock_session.request.assert_called_once()
+
+
+async def test_connect_events_sets_ws_heartbeat(
+    client: OpenMoticsClient, mock_session: MagicMock
+) -> None:
+    """WebSocket connection must use a heartbeat to detect dead connections."""
+    client._token = "valid"
+
+    ws = AsyncMock()
+    mock_session.ws_connect = AsyncMock(return_value=ws)
+
+    await client.connect_events()
+
+    mock_session.ws_connect.assert_called_once()
+    _, kwargs = mock_session.ws_connect.call_args
+    assert kwargs.get("heartbeat") is not None
+
+
+async def test_reset_session_creates_fresh_session(
+    client: OpenMoticsClient, mock_session: MagicMock
+) -> None:
+    """reset_session replaces the session and clears the token."""
+    client._token = "valid"
+    client._session = mock_session
+    mock_session.closed = False
+    mock_session.close = AsyncMock()
+
+    with patch("custom_components.renson_smartliving.api.asyncio.sleep", new_callable=AsyncMock):
+        client.reset_session()
+
+        assert client._token is None
+        assert client._session is None
+        mock_session.close.assert_not_called()
+
+        for task in list(client._closing):
+            await task
+
+    mock_session.close.assert_called_once()

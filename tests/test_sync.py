@@ -73,6 +73,7 @@ def _make_client() -> AsyncMock:
     )
     client.get_version = AsyncMock(return_value=VERSION_REST)
     client.close = AsyncMock()
+    client.reset_session = MagicMock()
     return client
 
 
