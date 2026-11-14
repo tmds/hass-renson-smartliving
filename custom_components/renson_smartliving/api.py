@@ -11,6 +11,10 @@ from homeassistant.exceptions import HomeAssistantError
 _LOGGER = logging.getLogger(__name__)
 _HTTP_LOGGER = logging.getLogger("custom_components.renson_smartliving.http")
 
+REQUEST_TIMEOUT = 30
+SYNC_TIMEOUT = 60
+WS_HEARTBEAT = 11
+
 WS_SUBSCRIPTION_TYPES = [
     # Config (flushed by sync/control)
     "OUTPUT_CONTROL",
@@ -59,6 +63,7 @@ class OpenMoticsClient:
         self._token: str | None = None
         self._ssl = _create_ssl_context()
         self._session: aiohttp.ClientSession | None = None
+        self._closing: dict[asyncio.Task[None], aiohttp.ClientSession] = {}
 
     @property
     def host(self) -> str:
@@ -67,15 +72,33 @@ class OpenMoticsClient:
     def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=30)
+                timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT),
             )
         return self._session
+
+    def reset_session(self) -> None:
+        """Replace the session, closing the old one after REQUEST_TIMEOUT."""
+        old = self._session
+        self._session = None
+        self._token = None
+        if old and not old.closed:
+
+            async def _close_later() -> None:
+                await asyncio.sleep(REQUEST_TIMEOUT)
+                await old.close()
+
+            task = asyncio.create_task(_close_later())
+            self._closing[task] = old
+            task.add_done_callback(self._closing.pop)
 
     @property
     def _base_url(self) -> str:
         return f"https://{self._host}"
 
-    async def login(self) -> None:
+    async def login(
+        self,
+        timeout: float | None = None,
+    ) -> None:
         """Authenticate with the gateway and store the token."""
         session = self._get_session()
         url = (
@@ -84,12 +107,13 @@ class OpenMoticsClient:
             f"&password={self._password}"
             f"&accept_terms=true&timeout=30"
         )
-        async with session.get(url, ssl=self._ssl) as resp:
+        kwargs: dict[str, Any] = {"ssl": self._ssl}
+        if timeout is not None:
+            kwargs["timeout"] = aiohttp.ClientTimeout(total=timeout)
+        async with session.get(url, **kwargs) as resp:
             data = await resp.json()
             if not data.get("success"):
-                raise AuthenticationError(
-                    data.get("msg", "Login failed")
-                )
+                raise AuthenticationError(data.get("msg", "Login failed"))
             self._token = data["token"]
 
     _TRANSIENT_EXCEPTIONS = (
@@ -101,8 +125,12 @@ class OpenMoticsClient:
     _RETRY_BACKOFF = (0.1, 0.2, 0.5)
 
     async def _request(
-        self, method: str, path: str, params: dict[str, Any] | None = None,
-        *, retry: bool = True,
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        *,
+        retry: bool = True,
     ) -> dict[str, Any]:
         """Make an authenticated request with retry on transient failures."""
         if self._token is None:
@@ -118,12 +146,18 @@ class OpenMoticsClient:
             except self._TRANSIENT_EXCEPTIONS as exc:
                 last_exc = exc
                 if attempt < self._MAX_RETRIES:
-                    delay = self._RETRY_BACKOFF[min(attempt, len(self._RETRY_BACKOFF) - 1)]
-                    _LOGGER.warning(
+                    delay = self._RETRY_BACKOFF[
+                        min(attempt, len(self._RETRY_BACKOFF) - 1)
+                    ]
+                    _LOGGER.debug(
                         "Transient error on %s %s (attempt %d/%d), "
                         "retrying in %.1fs: %s",
-                        method, path, attempt + 1,
-                        1 + self._MAX_RETRIES, delay, exc,
+                        method,
+                        path,
+                        attempt + 1,
+                        1 + self._MAX_RETRIES,
+                        delay,
+                        exc,
                     )
                     await asyncio.sleep(delay)
         raise OpenMoticsError(
@@ -131,7 +165,12 @@ class OpenMoticsClient:
         ) from last_exc
 
     async def _do_request(
-        self, method: str, path: str, params: dict[str, Any] | None = None
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        *,
+        timeout: aiohttp.ClientTimeout | None = None,
     ) -> dict[str, Any]:
         """Single attempt: send request, handle 401 re-auth."""
         session = self._get_session()
@@ -140,7 +179,12 @@ class OpenMoticsClient:
         _HTTP_LOGGER.debug("%s %s %s", method, path, params or "")
 
         async with session.request(
-            method, url, params=params, headers=headers, ssl=self._ssl
+            method,
+            url,
+            params=params,
+            headers=headers,
+            ssl=self._ssl,
+            timeout=timeout,
         ) as resp:
             if resp.status == 401:
                 _HTTP_LOGGER.debug("Token expired, re-authenticating")
@@ -179,8 +223,13 @@ class OpenMoticsClient:
     # -- Sync --
 
     async def trigger_sync(self) -> None:
-        """Trigger the gateway to flush all config through the WebSocket."""
-        await self.get("/api/sync/control")
+        assert self._token is not None
+        # This call is slow. Use a large timeout, and no retries.
+        await self._do_request(
+            "GET",
+            "/api/sync/control",
+            timeout=aiohttp.ClientTimeout(total=SYNC_TIMEOUT),
+        )
 
     # -- Gateway info --
 
@@ -229,7 +278,9 @@ class OpenMoticsClient:
         return await self.get("/do_shutter_stop", {"id": shutter_id})
 
     async def do_group_action(self, group_action_id: int) -> dict[str, Any]:
-        return await self.post("/do_group_action", {"group_action_id": group_action_id}, idempotent=False)
+        return await self.post(
+            "/do_group_action", {"group_action_id": group_action_id}, idempotent=False
+        )
 
     # -- WebSocket --
 
@@ -244,6 +295,7 @@ class OpenMoticsClient:
             ws_url,
             headers={"Authorization": f"Bearer {self._token}"},
             ssl=self._ssl,
+            heartbeat=WS_HEARTBEAT,
         )
         await ws.send_json(
             {
@@ -258,6 +310,11 @@ class OpenMoticsClient:
 
     async def close(self) -> None:
         """Close the HTTP session."""
+        for task, session in self._closing.items():
+            task.cancel()
+            if not session.closed:
+                await session.close()
+        self._closing.clear()
         if self._session and not self._session.closed:
             await self._session.close()
             self._session = None

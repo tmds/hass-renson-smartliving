@@ -130,6 +130,7 @@ class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._output_states: dict[int, dict[str, Any]] = {}
         self._shutter_states: dict[int, dict[str, Any]] = {}
         self._sensor_values: dict[int, float] = {}
+        self.connected: bool = False
 
     def resolve_entity_naming(
         self,

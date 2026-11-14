@@ -86,6 +86,10 @@ class OpenMoticsEntity(CoordinatorEntity[OpenMoticsCoordinator]):
         self.async_write_ha_state()
 
     @property
+    def available(self) -> bool:
+        return self.coordinator.connected
+
+    @property
     def device_info(self) -> DeviceInfo:
         gw = self.coordinator.gateway_info
         return DeviceInfo(
