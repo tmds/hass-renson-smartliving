@@ -225,6 +225,7 @@ def test_event_entity_attributes_extended_actions(coordinator) -> None:
         "openmotics_id": 5,
         "linked_group_action_id": 1,
         "has_extended_actions": True,
+        "basic_actions": "2,1",
     }
 
 

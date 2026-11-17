@@ -161,6 +161,7 @@ class OpenMoticsEvent(OpenMoticsEntity, EventEntity):
         )
         if current is not None and _has_extended_actions(current):
             attrs["has_extended_actions"] = True
+            attrs["basic_actions"] = current.get("basic_actions") or ""
         return attrs or None
 
     async def async_added_to_hass(self) -> None:

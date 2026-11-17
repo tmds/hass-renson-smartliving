@@ -11,7 +11,7 @@
  *   outputs:  [light.keuken_inbouwspots, ...]            (optional; defaults to
  *              all OpenMotics lights/switches in the same area as the inputs)
  */
-import { t } from "./renson-i18n.js?v=10";
+import { t } from "./renson-i18n.js?v=11";
 
 class RensonInputLinkCard extends HTMLElement {
   static getStubConfig() {
@@ -41,6 +41,8 @@ class RensonInputLinkCard extends HTMLElement {
       const resp = raw && raw.response ? raw.response : raw;
       if (resp && Array.isArray(resp.actions)) {
         this._gas = resp.actions.filter((g) => g.name || g.actions);
+        this._shuttersMap = {};
+        for (const s of resp.shutters || []) this._shuttersMap[s.id] = s.name || "";
       }
     } catch (err) {
       // non-fatal: rows fall back to the generic text
@@ -54,6 +56,37 @@ class RensonInputLinkCard extends HTMLElement {
     return ga && ga.name ? ga.name : "#" + id;
   }
 
+  _shutterName(id) {
+    const n = this._shuttersMap ? this._shuttersMap[id] : null;
+    return n || "#" + id;
+  }
+
+  /* Decode a basic_actions string into a human description. */
+  _describeBasic(ba) {
+    if (!ba) return "";
+    const t = String(ba).split(",").map(Number);
+    const parts = [];
+    for (let i = 0; i + 1 < t.length; i += 2) {
+      const a = t[i], n = t[i + 1];
+      if (a === 2) {
+        parts.push(this._t("runs_automation", { name: this._gaName(n) }));
+      } else if (a >= 207 && a <= 211) {
+        parts.push(this._t("longpress_runs",
+          { sec: a - 206, name: this._gaName(n) }));
+      } else if (a === 103) {
+        parts.push(this._t("ba_shutter_toggle",
+          { name: this._shutterName(n) }));
+      } else if (a === 108) {
+        parts.push(this._t("ba_shutter_up_toggle",
+          { name: this._shutterName(n) }));
+      } else if (a === 109) {
+        parts.push(this._t("ba_shutter_down_toggle",
+          { name: this._shutterName(n) }));
+      }
+    }
+    return parts.join(" · ");
+  }
+
   _signature(lang) {
     // Only re-render when something user-visible changes. Re-rendering on
     // every hass update replaces the DOM mid-click and eats clicks.
@@ -64,7 +97,8 @@ class RensonInputLinkCard extends HTMLElement {
       const a = st.attributes || {};
       parts.push(eid, a.linked_output_id === undefined ? "-" : a.linked_output_id,
                  a.linked_output_name || "", a.has_extended_actions ? "x" : "",
-                 a.linked_group_action_id === undefined ? "-" : a.linked_group_action_id);
+                 a.linked_group_action_id === undefined ? "-" : a.linked_group_action_id,
+                 a.basic_actions || "");
     }
     return parts.join("|");
   }
@@ -156,8 +190,13 @@ class RensonInputLinkCard extends HTMLElement {
         linkText = this._t("linked_to", { name: linked.name || ("output " + linked.id) });
       } else if (gaId !== undefined) {
         linkText = this._t("runs_automation", { name: this._gaName(gaId) });
+      } else if (extended) {
+        const desc = this._describeBasic(
+          st && st.attributes ? st.attributes.basic_actions : ""
+        );
+        linkText = desc || this._t("gateway_automation");
       } else {
-        linkText = extended ? this._t("gateway_automation") : this._t("not_linked");
+        linkText = this._t("not_linked");
       }
       return `
         <div class="row" data-entity="${eid}">
@@ -343,7 +382,9 @@ class RensonInputLinkCard extends HTMLElement {
       </div>`;
 
     let mode = "output";
-    let selectedGA = null;
+    const gaIdAttr = st && st.attributes ? st.attributes.linked_group_action_id : undefined;
+    // Pre-select the currently linked automation (pure "2,N" links).
+    let selectedGA = gaIdAttr !== undefined ? gaIdAttr : null;
     const roomRow = overlay.querySelector(".roomrow");
     const tabsHost = overlay.querySelector(".tabs");
     const setMode = (m) => {
@@ -352,6 +393,7 @@ class RensonInputLinkCard extends HTMLElement {
       tabsHost.querySelector(m === "output" ? ".tabout" : ".tabauto").classList.add("active");
       roomRow.style.display = m === "output" ? "" : "none";
       if (m === "output") {
+        selectedGA = null;
         optsHost.innerHTML = renderOpts();
         wireOpts();
         selected = null;
@@ -370,6 +412,15 @@ class RensonInputLinkCard extends HTMLElement {
     tabsHost.querySelector(".tabauto").addEventListener("click", () => setMode("automation"));
 
     const gas = this._gas || [];
+    // Group action ids referenced by this button's current basic_actions
+    // ("2,N" run, "207..211,N" long-press run).
+    const currentGAs = new Set();
+    if (extended && st && st.attributes && st.attributes.basic_actions) {
+      const t = String(st.attributes.basic_actions).split(",").map(Number);
+      for (let i = 0; i + 1 < t.length; i += 2) {
+        if (t[i] === 2 || (t[i] >= 207 && t[i] <= 211)) currentGAs.add(t[i + 1]);
+      }
+    }
     const renderGAs = () => {
       const list = gas.filter((g) => g.actions);
       return `
@@ -384,7 +435,7 @@ class RensonInputLinkCard extends HTMLElement {
         + (list.map((g) => `
           <div class="opt ${selectedGA === g.id ? "sel" : ""}" data-ga="${g.id}">
             <div>
-              <div>${this._esc(g.name || "#" + g.id)}</div>
+              <div>${this._esc(g.name || "#" + g.id)}${currentGAs.has(g.id) ? ' <span class="cur">' + this._t("currently_configured") + "</span>" : ""}</div>
               <div class="dom">${this._esc(this._gaSummary(g))}</div>
             </div>
           </div>`).join("")
@@ -489,14 +540,25 @@ class RensonInputLinkCard extends HTMLElement {
       const a = pairs[i], n = pairs[i + 1];
       if (a === 240) {
         parts.push({ 0: "IF", 1: "AND", 2: "OR", 10: "THEN", 20: "ELSE", 255: "END IF" }[n] || "?");
-      } else if (a === 243) parts.push("#" + n + " on?");
+      } else if (a === 2) parts.push(this._t("runs_automation", { name: this._gaName(n) }));
+      else if (a === 243) parts.push("#" + n + " on?");
       else if (a === 244) parts.push("#" + n + " off?");
       else if (a === 241) parts.push("btn #" + n);
+      else if (a === 242) parts.push("!btn #" + n);
       else if (a === 160) parts.push("#" + n + " off");
       else if (a === 161) parts.push("#" + n + " on");
       else if (a === 162) parts.push("#" + n + " toggle");
-      else if (a === 2) parts.push("run #" + n);
-      else if (a >= 100 && a <= 103) parts.push("shutter #" + n);
+      else if (a === 165) parts.push("#" + n + " on min");
+      else if (a === 166) parts.push("#" + n + " on max");
+      else if (a >= 176 && a <= 184) parts.push("#" + n + " on " + (a - 175) * 10 + "%");
+      else if (a >= 185 && a <= 194) parts.push("#" + n + " toggle " + (a - 184) * 10 + "%");
+      else if (a >= 195 && a <= 200) parts.push("#" + n + " on " + [2.5, 7.5, 15, 25, 37, 52][a - 195] + "m");
+      else if (a >= 201 && a <= 206) parts.push("#" + n + " on " + [2.5, 7.5, 15, 25, 37, 52][a - 201] + "m*");
+      else if (a === 103) parts.push(this._t("ba_shutter_toggle", { name: this._shutterName(n) }));
+      else if (a === 108) parts.push(this._t("ba_shutter_up_toggle", { name: this._shutterName(n) }));
+      else if (a === 109) parts.push(this._t("ba_shutter_down_toggle", { name: this._shutterName(n) }));
+      else if (a === 68) parts.push("press btn #" + n);
+      else if (a === 69) parts.push("release btn #" + n);
       else parts.push("BA " + a + "," + n);
     }
     return parts.join(" · ") || "(empty)";
