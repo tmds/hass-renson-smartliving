@@ -68,7 +68,8 @@ def _linked_output(
         if action is None:
             return None
         if action == 240:
-            # Extended actions: recognise the shutter toggle "103,<shutter>".
+            # Extended actions: recognise the shutter toggle "103,<shutter>"
+            # and the group action run "2,<group_action_id>".
             actions = str(inp.get("basic_actions") or "").split(",")
             if len(actions) == 2 and actions[0] == "103":
                 shutter_id = int(actions[1])
@@ -83,6 +84,25 @@ def _linked_output(
             if output.get("id") == action:
                 return {"id": action, "name": output.get("name")}
         return {"id": action, "name": None}
+
+
+def _linked_group_action(
+    coordinator: OpenMoticsCoordinator, input_id: int
+) -> int | None:
+    """Return the group action id an input triggers, if linked as "2,<id>"."""
+    for inp in coordinator.inputs:
+        if inp.get("id") != input_id:
+            continue
+        if inp.get("action") != 240:
+            return None
+        actions = str(inp.get("basic_actions") or "").split(",")
+        if len(actions) == 2 and actions[0] == "2":
+            try:
+                return int(actions[1])
+            except ValueError:
+                return None
+        return None
+    return None
     return None
 
 
@@ -129,10 +149,12 @@ class OpenMoticsEvent(OpenMoticsEntity, EventEntity):
     def extra_state_attributes(self) -> dict[str, Any] | None:
         attrs: dict[str, Any] = {"openmotics_id": self._input_id}
         linked = _linked_output(self.coordinator, self._input_id)
-        linked = _linked_output(self.coordinator, self._input_id)
         if linked is not None:
             attrs["linked_output_id"] = linked["id"]
             attrs["linked_output_name"] = linked["name"]
+        ga_id = _linked_group_action(self.coordinator, self._input_id)
+        if ga_id is not None:
+            attrs["linked_group_action_id"] = ga_id
         current = next(
             (inp for inp in self.coordinator.inputs if inp.get("id") == self._input_id),
             None,

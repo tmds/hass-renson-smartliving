@@ -257,3 +257,88 @@ async def test_run_group_action(hass: HomeAssistant) -> None:
         DOMAIN, "run_group_action", {"id": 2}, blocking=True
     )
     coordinator.client.do_group_action.assert_awaited_once_with(2)
+
+
+# -- Input links to group actions --
+
+
+def test_linked_group_action_detects_run_encoding() -> None:
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    from custom_components.renson_smartliving.event import (  # noqa: PLC0415
+        _linked_group_action,
+    )
+
+    coordinator = SimpleNamespace(
+        inputs=[{"id": 12, "action": 240, "basic_actions": "2,1"}]
+    )
+    assert _linked_group_action(coordinator, 12) == 1
+    assert _linked_group_action(coordinator, 13) is None
+
+
+def test_linked_group_action_ignores_other_encodings() -> None:
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    from custom_components.renson_smartliving.event import (  # noqa: PLC0415
+        _linked_group_action,
+    )
+
+    coordinator = SimpleNamespace(
+        inputs=[
+            {"id": 10, "action": 240, "basic_actions": "108,4"},
+            {"id": 11, "action": 15, "basic_actions": ""},
+            {"id": 12, "action": 240, "basic_actions": "2,1,2,2"},
+        ]
+    )
+    assert _linked_group_action(coordinator, 10) is None
+    assert _linked_group_action(coordinator, 11) is None
+    assert _linked_group_action(coordinator, 12) is None
+
+
+async def test_set_input_link_group_action(hass: HomeAssistant) -> None:
+    """set_input_link with group_action_id writes the extended encoding."""
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    coordinator = await _setup_with_entry(hass)
+    registry: dict = hass.data.setdefault(DOMAIN, {}).setdefault("om_entities", {})
+    registry["event.test"] = SimpleNamespace(
+        coordinator=coordinator, entity_id="event.test", input_id=12
+    )
+
+    await hass.services.async_call(
+        DOMAIN,
+        "set_input_link",
+        {"entity_id": ["event.test"], "group_action_id": 2},
+        blocking=True,
+    )
+    coordinator.client.set_input_configuration.assert_awaited_once_with(
+        {"id": 12, "action": 240, "basic_actions": "2,2"}
+    )
+
+
+async def test_set_input_link_group_action_new_automation(
+    hass: HomeAssistant,
+) -> None:
+    """Chaining save_group_action + set_input_link links the new automation."""
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    coordinator = await _setup_with_entry(hass)
+    registry: dict = hass.data.setdefault(DOMAIN, {}).setdefault("om_entities", {})
+    registry["event.test"] = SimpleNamespace(
+        coordinator=coordinator, entity_id="event.test", input_id=12
+    )
+
+    await hass.services.async_call(
+        DOMAIN,
+        "save_group_action",
+        {"id": 5, "name": "nieuw", "actions": ""},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        "set_input_link",
+        {"entity_id": ["event.test"], "group_action_id": 5},
+        blocking=True,
+    )
+    calls = coordinator.client.set_input_configuration.await_args_list
+    assert calls[-1].args[0] == {"id": 12, "action": 240, "basic_actions": "2,5"}

@@ -1,5 +1,6 @@
 set_thermostat_schedule:
-  name: Set thermostat schedule  description: >-
+  name: Set thermostat schedule
+  description: >-
     Replace the heating schedule of an OpenMotics thermostat for one,
     several or all days. Setpoints are HH:MM times with a target
     temperature; the gateway applies the schedule value from that time
@@ -80,6 +81,17 @@ set_input_link:
       selector:
         entity:
           multiple: false
+    group_action_id:
+      name: Group action id
+      description: >-
+        Gateway automation (group action) to trigger on press, instead of
+        an output. Takes precedence over output_entity/output_id.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1
     output_id:
       name: Output id
       description: >-

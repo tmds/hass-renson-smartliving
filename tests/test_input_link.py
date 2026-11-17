@@ -223,6 +223,7 @@ def test_event_entity_attributes_extended_actions(coordinator) -> None:
     entity = _event_entity(coordinator, 5)
     assert entity.extra_state_attributes == {
         "openmotics_id": 5,
+        "linked_group_action_id": 1,
         "has_extended_actions": True,
     }
 

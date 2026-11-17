@@ -11,7 +11,7 @@
  *   outputs:  [light.keuken_inbouwspots, ...]            (optional; defaults to
  *              all OpenMotics lights/switches in the same area as the inputs)
  */
-import { t } from "./renson-i18n.js?v=9";
+import { t } from "./renson-i18n.js?v=10";
 
 class RensonInputLinkCard extends HTMLElement {
   static getStubConfig() {
@@ -27,18 +27,44 @@ class RensonInputLinkCard extends HTMLElement {
       this._lang = lang;
       this._render();
     }
+    // Fetch the gateway automations once so rows can show WHICH automation
+    // an input triggers (attribute linked_group_action_id).
+    if (!this._gas && !this._gaLoading && !this._open) this._fetchGas();
+  }
+
+  async _fetchGas() {
+    this._gaLoading = true;
+    try {
+      const raw = await this._hass.callService(
+        "renson_smartliving", "get_group_actions", {}, undefined, undefined, true
+      );
+      const resp = raw && raw.response ? raw.response : raw;
+      if (resp && Array.isArray(resp.actions)) {
+        this._gas = resp.actions.filter((g) => g.name || g.actions);
+      }
+    } catch (err) {
+      // non-fatal: rows fall back to the generic text
+    }
+    this._gaLoading = false;
+    if (!this._open) this._render();
+  }
+
+  _gaName(id) {
+    const ga = (this._gas || []).find((g) => g.id === id);
+    return ga && ga.name ? ga.name : "#" + id;
   }
 
   _signature(lang) {
     // Only re-render when something user-visible changes. Re-rendering on
     // every hass update replaces the DOM mid-click and eats clicks.
-    const parts = [lang];
+    const parts = [lang, this._gas ? this._gas.length : "-"];
     for (const eid of this._config.entities || []) {
       const st = this._hass && this._hass.states[eid];
       if (!st) { parts.push("missing"); continue; }
       const a = st.attributes || {};
       parts.push(eid, a.linked_output_id === undefined ? "-" : a.linked_output_id,
-                 a.linked_output_name || "", a.has_extended_actions ? "x" : "");
+                 a.linked_output_name || "", a.has_extended_actions ? "x" : "",
+                 a.linked_group_action_id === undefined ? "-" : a.linked_group_action_id);
     }
     return parts.join("|");
   }
@@ -124,11 +150,15 @@ class RensonInputLinkCard extends HTMLElement {
       const linked = this._linked(eid);
       const st = this._hass && this._hass.states[eid];
       const extended = !!(st && st.attributes && st.attributes.has_extended_actions);
-      const linkText = linked
-        ? this._t("linked_to", { name: linked.name || ("output " + linked.id) })
-        : extended
-          ? this._t("gateway_automation")
-          : this._t("not_linked");
+      const gaId = st && st.attributes ? st.attributes.linked_group_action_id : undefined;
+      let linkText;
+      if (linked) {
+        linkText = this._t("linked_to", { name: linked.name || ("output " + linked.id) });
+      } else if (gaId !== undefined) {
+        linkText = this._t("runs_automation", { name: this._gaName(gaId) });
+      } else {
+        linkText = extended ? this._t("gateway_automation") : this._t("not_linked");
+      }
       return `
         <div class="row" data-entity="${eid}">
           <div class="info">
@@ -187,6 +217,19 @@ class RensonInputLinkCard extends HTMLElement {
         }
         .roomrow {
           display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+        }
+        .tabs {
+          display: flex; gap: 6px; margin-bottom: 10px;
+        }
+        .tabs .tab {
+          flex: 1; border: 1px solid var(--divider-color, #ccc); background: transparent;
+          color: var(--primary-text-color, #111); border-radius: 10px;
+          padding: 8px 10px; font-size: 13px; cursor: pointer;
+        }
+        .tabs .tab.active {
+          background: var(--primary-color, #03a9f4);
+          color: var(--text-primary-color, #fff);
+          border-color: var(--primary-color, #03a9f4);
         }
         .roomrow label { font-size: .8em; color: var(--secondary-text-color); }
         .roomrow select {
@@ -284,6 +327,10 @@ class RensonInputLinkCard extends HTMLElement {
         <h3>${this._friendly(entityId)}</h3>
         <div class="sub">${this._t("link_hint")}</div>
         ${extended ? `<div class="warn">${this._t("extended_warning")}</div>` : ""}
+        <div class="tabs">
+          <button class="tab tabout active">${this._t("tab_output")}</button>
+          <button class="tab tabauto">${this._t("tab_automation")}</button>
+        </div>
         <div class="roomrow">
           <label>${this._t("room")}</label>
           <select class="roomsel">${roomOptions.join("")}</select>
@@ -295,6 +342,67 @@ class RensonInputLinkCard extends HTMLElement {
         </div>
       </div>`;
 
+    let mode = "output";
+    let selectedGA = null;
+    const roomRow = overlay.querySelector(".roomrow");
+    const tabsHost = overlay.querySelector(".tabs");
+    const setMode = (m) => {
+      mode = m;
+      tabsHost.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
+      tabsHost.querySelector(m === "output" ? ".tabout" : ".tabauto").classList.add("active");
+      roomRow.style.display = m === "output" ? "" : "none";
+      if (m === "output") {
+        optsHost.innerHTML = renderOpts();
+        wireOpts();
+        selected = null;
+        if (selectedId !== null) {
+          const match = outputs.find((eid) => this._outputIdOf(eid) === selectedId);
+          if (match) selected = match;
+        }
+      } else {
+        selected = null;
+        optsHost.innerHTML = renderGAs();
+        wireGAs();
+      }
+      syncSave();
+    };
+    tabsHost.querySelector(".tabout").addEventListener("click", () => setMode("output"));
+    tabsHost.querySelector(".tabauto").addEventListener("click", () => setMode("automation"));
+
+    const gas = this._gas || [];
+    const renderGAs = () => {
+      const list = gas.filter((g) => g.actions);
+      return `
+        <div class="opt ${typeof selectedGA === "string" ? "sel" : ""}" data-ga="new">
+          <div>
+            <div>${this._t("new_automation")}</div>
+            <input type="text" class="ganame" maxlength="16"
+                   placeholder="${this._t("new_automation_name")}"
+                   style="width:100%;box-sizing:border-box;margin-top:6px;padding:7px 9px;border:1px solid var(--divider-color,#ccc);border-radius:8px;font-size:13px;background:var(--card-background-color,#fff);color:inherit">
+          </div>
+        </div>`
+        + (list.map((g) => `
+          <div class="opt ${selectedGA === g.id ? "sel" : ""}" data-ga="${g.id}">
+            <div>
+              <div>${this._esc(g.name || "#" + g.id)}</div>
+              <div class="dom">${this._esc(this._gaSummary(g))}</div>
+            </div>
+          </div>`).join("")
+        ) || "";
+    };
+    const wireGAs = () => {
+      optsHost.querySelectorAll(".opt").forEach((el) => {
+        el.addEventListener("click", (e) => {
+          if (e.target.tagName === "INPUT") return;
+          optsHost.querySelectorAll(".opt").forEach((o) => o.classList.remove("sel"));
+          el.classList.add("sel");
+          const v = el.dataset.ga;
+          selectedGA = v === "new" ? "new" : Number(v);
+          syncSave();
+        });
+      });
+    };
+
     let selected = null;
     // Pre-select the currently linked output (even when filtered out of view).
     if (selectedId !== null) {
@@ -304,7 +412,11 @@ class RensonInputLinkCard extends HTMLElement {
     const saveBtn = overlay.querySelector(".save");
     const syncSave = () => {
       // Unlinking an extended input would erase its gateway actions.
-      saveBtn.disabled = extended && !selected;
+      if (mode === "automation") {
+        saveBtn.disabled = extended && !selectedGA;
+      } else {
+        saveBtn.disabled = extended && !selected;
+      }
     };
     syncSave();
     const optsHost = overlay.querySelector(".opts");
@@ -338,12 +450,56 @@ class RensonInputLinkCard extends HTMLElement {
     overlay.querySelector(".cancel").addEventListener("click", close);
     overlay.querySelector(".save").addEventListener("click", async () => {
       const serviceData = { entity_id: [entityId] };
-      if (selected) serviceData.output_entity = selected;
+      if (mode === "automation") {
+        if (selectedGA === "new") {
+          const nameInput = optsHost.querySelector(".ganame");
+          const name = nameInput ? nameInput.value.trim() : "";
+          const used = new Set((this._gas || []).map((g) => g.id));
+          let id = 0;
+          while (used.has(id) && id < 256) id++;
+          await this._hass.callService("renson_smartliving", "save_group_action", {
+            id, name, actions: "", show_in_app: true,
+          });
+          serviceData.group_action_id = id;
+          this._gas = null; // refetch so rows show the new automation
+        } else if (selectedGA !== null) {
+          serviceData.group_action_id = selectedGA;
+        }
+      } else if (selected) {
+        serviceData.output_entity = selected;
+      }
       if (extended) serviceData.force = true;
       await this._hass.callService("renson_smartliving", "set_input_link", serviceData);
       close();
+      if (this._gas === null) await this._fetchGas();
       this._render();
     });
+  }
+
+  _esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  _gaSummary(ga) {
+    const pairs = ga.actions ? ga.actions.split(",").map(Number) : [];
+    const parts = [];
+    for (let i = 0; i < pairs.length; i += 2) {
+      const a = pairs[i], n = pairs[i + 1];
+      if (a === 240) {
+        parts.push({ 0: "IF", 1: "AND", 2: "OR", 10: "THEN", 20: "ELSE", 255: "END IF" }[n] || "?");
+      } else if (a === 243) parts.push("#" + n + " on?");
+      else if (a === 244) parts.push("#" + n + " off?");
+      else if (a === 241) parts.push("btn #" + n);
+      else if (a === 160) parts.push("#" + n + " off");
+      else if (a === 161) parts.push("#" + n + " on");
+      else if (a === 162) parts.push("#" + n + " toggle");
+      else if (a === 2) parts.push("run #" + n);
+      else if (a >= 100 && a <= 103) parts.push("shutter #" + n);
+      else parts.push("BA " + a + "," + n);
+    }
+    return parts.join(" · ") || "(empty)";
   }
 
   _omIdOf(entityId) {

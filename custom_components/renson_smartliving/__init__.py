@@ -63,6 +63,7 @@ SERVICE_SET_INPUT_LINK_SCHEMA = vol.Schema(
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
         vol.Optional("output_entity"): cv.entity_id,
         vol.Optional("output_id"): int,
+        vol.Optional("group_action_id"): vol.Coerce(int),
         vol.Optional("force"): bool,
     }
 )
@@ -161,6 +162,7 @@ async def _async_set_input_link(call: ServiceCall) -> None:
         output_entity_id,
         call.data.get("output_id"),
     )
+    group_action_id = call.data.get("group_action_id")
     action = 255 if output_id is None else output_id
     for entity_id in call.data[ATTR_ENTITY_ID]:
         coordinator, entity = _resolve_om_entity(call.hass, entity_id)
@@ -185,9 +187,15 @@ async def _async_set_input_link(call: ServiceCall) -> None:
                 "on the gateway. Repeat with force=true to overwrite them."
             )
         config: dict[str, Any] = {"id": input_id, "action": action}
+        # A group action link uses the extended encoding: action 240 with
+        # basic_actions "2,<group_action_id>" (run group action), the same
+        # encoding the gateway itself writes.
+        if group_action_id is not None:
+            config["action"] = 240
+            config["basic_actions"] = f"2,{group_action_id}"
         # Covers (screens/shutters) cannot be toggled as a plain output: they
         # get the classic shutter toggle action 103,<shutter> (up/stop/down).
-        if output_entity_id and output_entity_id.split(".")[0] == "cover":
+        elif output_entity_id and output_entity_id.split(".")[0] == "cover":
             config["action"] = 240
             config["basic_actions"] = f"103,{output_id}"
         elif current is not None and current.get("basic_actions"):
@@ -196,7 +204,7 @@ async def _async_set_input_link(call: ServiceCall) -> None:
         _update_input_config(
             coordinator,
             input_id,
-            None if action == 255 else action,
+            None if config["action"] == 255 else config["action"],
             config.get("basic_actions"),
         )
         _LOGGER.info(
