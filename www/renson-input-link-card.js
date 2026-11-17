@@ -20,8 +20,27 @@ class RensonInputLinkCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    this._lang = (hass.locale && hass.locale.language) || this._lang || "en";
-    if (!this._open) this._render();
+    const lang = (hass.locale && hass.locale.language) || this._lang || "en";
+    const sig = this._signature(lang);
+    if (sig !== this._lastSig && !this._open) {
+      this._lastSig = sig;
+      this._lang = lang;
+      this._render();
+    }
+  }
+
+  _signature(lang) {
+    // Only re-render when something user-visible changes. Re-rendering on
+    // every hass update replaces the DOM mid-click and eats clicks.
+    const parts = [lang];
+    for (const eid of this._config.entities || []) {
+      const st = this._hass && this._hass.states[eid];
+      if (!st) { parts.push("missing"); continue; }
+      const a = st.attributes || {};
+      parts.push(eid, a.linked_output_id === undefined ? "-" : a.linked_output_id,
+                 a.linked_output_name || "", a.has_extended_actions ? "x" : "");
+    }
+    return parts.join("|");
   }
 
   _t(key, params) {
@@ -180,6 +199,7 @@ class RensonInputLinkCard extends HTMLElement {
   _openDialog(entityId) {
     this._open = true;
     const overlay = this.renderRoot.querySelector(".overlay");
+    overlay.style.display = "flex";
     const current = this._linked(entityId);
     const st = this._hass && this._hass.states[entityId];
     const extended = !!(st && st.attributes && st.attributes.has_extended_actions);
