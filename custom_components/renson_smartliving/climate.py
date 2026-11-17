@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.climate import (
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from . import OpenMoticsConfigEntry
 from .const import (
     DEFAULT_PRESET_EXPIRATION_HOURS,
+    DOMAIN,
     PRESET_AUTO,
     THERMOSTAT_MAX_TEMP,
     THERMOSTAT_MIN_TEMP,
@@ -45,6 +46,38 @@ _OM_PRESET_TO_HA = {
     # setpoint override of the schedule.
     "override": PRESET_NONE,
 }
+
+def time_to_seconds(value: Any) -> int:
+    """Convert an HH:MM(:SS) time string or time object to seconds."""
+    if isinstance(value, time):
+        return value.hour * 3600 + value.minute * 60 + value.second
+    parts = str(value).split(":")
+    if len(parts) not in (2, 3):
+        raise ValueError(f"Invalid time: {value}")
+    hours, minutes = int(parts[0]), int(parts[1])
+    seconds = int(parts[2]) if len(parts) == 3 else 0
+    if not (0 <= hours < 24 and 0 <= minutes < 60 and 0 <= seconds < 60):
+        raise ValueError(f"Invalid time: {value}")
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def seconds_to_time(value: int) -> str:
+    """Convert seconds since midnight to an HH:MM string."""
+    value = int(value)
+    return f"{value // 3600:02d}:{(value % 3600) // 60:02d}"
+
+
+def format_schedule(schedule: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Render a gateway schedule (seconds keys) as HH:MM keys."""
+    if not isinstance(schedule, dict):
+        return None
+    return {
+        day: {
+            seconds_to_time(int(t)): temp
+            for t, temp in day_schedule.items()
+        }
+        for day, day_schedule in schedule.items()
+    }
 
 
 async def async_setup_entry(
@@ -126,6 +159,44 @@ class OpenMoticsClimate(OpenMoticsEntity, ClimateEntity):
         self._thermostat_id = thermostat_id
         self._ws_change_type = "THERMOSTAT_CHANGE"
         self._om_id = thermostat_id
+
+    @property
+    def thermostat_id(self) -> int:
+        """The OpenMotics thermostat id."""
+        return self._thermostat_id
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        registry: dict[str, Any] = self.hass.data.setdefault(DOMAIN, {})
+        entities: dict[str, Any] = registry.setdefault("climate_entities", {})
+        entities[self.entity_id] = self
+
+    async def async_will_remove_from_hass(self) -> None:
+        await super().async_will_remove_from_hass()
+        registry = self.hass.data.get(DOMAIN, {})
+        entities: dict[str, Any] = registry.get("climate_entities", {})
+        entities.pop(self.entity_id, None)
+
+    def _thermostat_config(self) -> dict[str, Any] | None:
+        """Return the full control-list entry (config + status)."""
+        for thermostat in self.coordinator.thermostats:
+            if thermostat.get("id") == self._thermostat_id:
+                return thermostat
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Expose the schedule configuration for dashboards and services."""
+        config = self._thermostat_config()
+        if config is None:
+            return None
+        return {
+            "heating_schedule": format_schedule(
+                config.get("heating_schedule")
+            ),
+            "away_temperature": config.get("away_heating"),
+            "lead_time": config.get("early_heating"),
+        }
 
     def _status(self) -> dict[str, Any] | None:
         return self.coordinator.get_thermostat_state(self._thermostat_id)

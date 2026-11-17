@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import ssl
-from typing import Any
+from typing import Any, cast
 
 import aiohttp
 from homeassistant.exceptions import HomeAssistantError
@@ -275,34 +275,34 @@ class OpenMoticsClient:
 
     async def get_output_status(self) -> list[dict[str, Any]]:
         data = await self.get("/get_output_status")
-        return data.get("status", [])
+        return cast(list[dict[str, Any]], data.get("status", []))
 
     async def get_shutter_status(self) -> dict[str, Any]:
         return await self.get("/get_shutter_status")
 
     async def get_input_configurations(self) -> list[dict[str, Any]]:
         data = await self.get("/get_input_configurations")
-        return data.get("config", [])
+        return cast(list[dict[str, Any]], data.get("config", []))
 
     async def get_output_configurations(self) -> list[dict[str, Any]]:
         data = await self.get("/get_output_configurations")
-        return data.get("config", [])
+        return cast(list[dict[str, Any]], data.get("config", []))
 
     async def get_shutter_configurations(self) -> list[dict[str, Any]]:
         data = await self.get("/get_shutter_configurations")
-        return data.get("config", [])
+        return cast(list[dict[str, Any]], data.get("config", []))
 
     async def get_sensor_configurations(self) -> list[dict[str, Any]]:
         data = await self.get("/get_sensor_configurations")
-        return data.get("config", [])
+        return cast(list[dict[str, Any]], data.get("config", []))
 
     async def get_room_configurations(self) -> list[dict[str, Any]]:
         data = await self.get("/get_room_configurations")
-        return data.get("config", [])
+        return cast(list[dict[str, Any]], data.get("config", []))
 
     async def get_group_action_configurations(self) -> list[dict[str, Any]]:
         data = await self.get("/get_group_action_configurations")
-        return data.get("config", [])
+        return cast(list[dict[str, Any]], data.get("config", []))
 
     # -- Commands --
 

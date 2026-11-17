@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from homeassistant.components.climate import (
     PRESET_AWAY,
@@ -13,6 +15,7 @@ from homeassistant.components.climate import (
 from custom_components.renson_smartliving.climate import (
     OpenMoticsClimate,
     create_entities,
+    time_to_seconds,
 )
 from custom_components.renson_smartliving.const import PRESET_AUTO
 from custom_components.renson_smartliving.coordinator import OpenMoticsCoordinator
@@ -155,3 +158,75 @@ async def test_climate_limits() -> None:
     assert climate.max_temp == 32
     assert climate.target_temperature_step == 0.5
     assert climate.hvac_modes == [HVACMode.OFF, HVACMode.HEAT]
+
+
+async def test_extra_state_attributes(coordinator: OpenMoticsCoordinator) -> None:
+    """Schedule, away temperature and lead time are exposed as attributes."""
+    _load_status(coordinator)
+    climate = _make_climate(coordinator)
+    coordinator.thermostats = [
+        {
+            "id": 0,
+            "name": "Living",
+            "room": 2,
+            "away_heating": 13.0,
+            "early_heating": 30,
+            "heating_schedule": {
+                "mon": {"0": 14, "25200": 19},
+                "tue": {"0": 14, "25200": 19},
+            },
+        }
+    ]
+    attrs = climate.extra_state_attributes
+    assert attrs["away_temperature"] == 13.0
+    assert attrs["lead_time"] == 30
+    assert attrs["heating_schedule"]["mon"] == {"00:00": 14, "07:00": 19}
+
+
+def test_time_conversion() -> None:
+    """HH:MM strings and time objects map to seconds since midnight."""
+    assert time_to_seconds("08:00") == 28800
+    assert time_to_seconds("22:30") == 81000
+    assert time_to_seconds("00:00") == 0
+    assert time_to_seconds(time(6, 30)) == 23400
+    with pytest.raises(ValueError):
+        time_to_seconds("24:00")
+    with pytest.raises(ValueError):
+        time_to_seconds("not-a-time")
+
+
+async def test_build_schedule_payload_keeps_other_days(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    """Only the listed days are replaced; other days keep their schedule."""
+    from custom_components.renson_smartliving.__init__ import (
+        _build_schedule_payload,
+    )
+
+    coordinator.thermostats = [
+        {
+            "id": 0,
+            "heating_schedule": {
+                "mon": {"0": 14},
+                "tue": {"0": 14, "25200": 19},
+                "wed": {"0": 15},
+            },
+        }
+    ]
+    payload = _build_schedule_payload(
+        coordinator,
+        0,
+        ["tue"],
+        [{"time": "08:00", "temperature": 20}],
+    )
+    schedule = payload["heating_schedule"]
+    assert schedule["tue"] == {28800: 20.0}
+    assert schedule["mon"] == {"0": 14}
+    assert schedule["wed"] == {"0": 15}
+
+    payload_all = _build_schedule_payload(
+        coordinator, 0, None, [{"time": "21:00", "temperature": 17}]
+    )
+    assert all(
+        day == {75600: 17.0} for day in payload_all["heating_schedule"].values()
+    )

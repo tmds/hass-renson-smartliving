@@ -1,0 +1,54 @@
+set_thermostat_schedule:
+  name: Set thermostat schedule
+  description: >-
+    Replace the heating schedule of an OpenMotics thermostat for one,
+    several or all days. Setpoints are HH:MM times with a target
+    temperature; the gateway applies the schedule value from that time
+    until the next one.
+  target:
+    entity:
+      integration: renson_smartliving
+      domain: climate
+  fields:
+    days:
+      name: Days
+      description: Days to update (default: all days).
+      example: ["mon", "tue"]
+      required: false
+      selector:
+        object:
+    setpoints:
+      name: Setpoints
+      description: List of {time: "HH:MM", temperature: x} entries.
+      required: true
+      selector:
+        object:
+
+set_thermostat_config:
+  name: Set thermostat config
+  description: >-
+    Set the away temperature and the lead time (early heating, minutes
+    before a schedule setpoint) of an OpenMotics thermostat.
+  target:
+    entity:
+      integration: renson_smartliving
+      domain: climate
+  fields:
+    away_temperature:
+      name: Away temperature
+      description: Away heating setpoint in degrees Celsius.
+      required: false
+      selector:
+        number:
+          min: 6
+          max: 32
+          step: 0.5
+    lead_time:
+      name: Lead time
+      description: Early heating in minutes before a schedule setpoint.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 360
+          step: 1
