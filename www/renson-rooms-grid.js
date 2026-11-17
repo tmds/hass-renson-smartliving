@@ -371,6 +371,19 @@ class RensonRoomsGrid extends HTMLElement {
       const card = view && view.cards && view.cards[0];
       if (card && card.type === "custom:renson-rooms-grid") {
         card.rooms = this._rooms;
+        // De tab-rij volgt de view-volgorde: herschik de ruimte-views
+        // mee met de gesleepte volgorde. Views[0] (Overview) blijft eerst;
+        // views die niet in de kamerlijst staan (bv. extra dashboards)
+        // blijven achteraan in hun onderlinge volgorde staan.
+        // Tile-paths hebben de vorm "/lovelace/<path>", view.path alleen "<path>".
+        const norm = (p) => String(p).replace(/^\/lovelace\//, "");
+        const order = this._rooms.map((r) => norm(r.path));
+        const first = config.views[0];
+        const rest = config.views.slice(1);
+        const byPath = new Map(rest.map((v) => [v.path, v]));
+        const sorted = order.map((p) => byPath.get(p)).filter(Boolean);
+        const leftovers = rest.filter((v) => !order.includes(v.path));
+        config.views = [first, ...sorted, ...leftovers];
         await this._hass.connection.sendMessagePromise({
           type: "lovelace/config/save",
           config,
