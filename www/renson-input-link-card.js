@@ -344,6 +344,8 @@ class RensonInputLinkCard extends HTMLElement {
           color: var(--primary-text-color);
           width: 30px; height: 30px; border-radius: 50%;
           cursor: pointer; font-size: 1.05em;
+          display: flex; align-items: center; justify-content: center;
+          padding: 0; line-height: 1;
         }
       </style>
       <ha-card>

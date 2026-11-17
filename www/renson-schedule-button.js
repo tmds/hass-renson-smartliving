@@ -63,12 +63,15 @@ class RensonScheduleButton extends HTMLElement {
           box-shadow: 0 12px 40px rgba(0,0,0,.35);
         }
         .close {
-          position: absolute; top: 10px; right: 12px; z-index: 2;
+          position: absolute; top: 6px; right: 8px; z-index: 2;
           border: none; background: var(--secondary-background-color);
           color: var(--primary-text-color);
           width: 30px; height: 30px; border-radius: 50%;
           cursor: pointer; font-size: 1.05em;
+          display: flex; align-items: center; justify-content: center;
+          padding: 0; line-height: 1;
         }
+        .editor-host { padding-top: 40px; }
       </style>
       <button>${t(this._lang, "configure_schedule")}</button>
       <div class="overlay" style="display:none">

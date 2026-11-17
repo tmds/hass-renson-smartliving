@@ -374,7 +374,7 @@ class RensonThermostatConfigCard extends HTMLElement {
           filter: invert(.5); cursor: pointer;
         }
         .stepper {
-          display: flex; align-items: center; gap: 2px;
+          display: flex; align-items: center; gap: 6px;
           margin-left: auto;
         }
         .stepper button {
@@ -382,13 +382,14 @@ class RensonThermostatConfigCard extends HTMLElement {
           color: var(--primary-text-color); width: 26px; height: 26px;
           border-radius: 8px; cursor: pointer; font-size: 1em;
           line-height: 1; transition: background .15s ease;
+          display: flex; align-items: center; justify-content: center;
+          padding: 0; flex-shrink: 0;
         }
         .stepper button:hover { background: var(--primary-color); }
         .stepper .val {
           min-width: 44px; text-align: center;
           font-weight: 600; color: var(--primary-text-color);
         }
-        .stepper .unit { color: var(--secondary-text-color); font-size: .8em; }
         .sp-row .clock { color: var(--secondary-text-color); }
         .del {
           border: none; background: transparent;
@@ -396,6 +397,8 @@ class RensonThermostatConfigCard extends HTMLElement {
           border-radius: 8px; width: 28px; height: 28px;
           cursor: pointer; font-size: 1.05em;
           transition: all .15s ease;
+          display: flex; align-items: center; justify-content: center;
+          padding: 0; line-height: 1; flex-shrink: 0;
         }
         .del:hover { color: var(--error-color); background: var(--primary-background-color); }
         .btn {
@@ -527,7 +530,6 @@ class RensonThermostatConfigCard extends HTMLElement {
                 <button class="minus">&minus;</button>
                 <span class="val">${this._fmtTemp(r.temp)}&deg;</span>
                 <button class="plus">+</button>
-                <span class="unit">C</span>
               </div>
               <button class="del" title="${this._t("remove")}">&times;</button>
             </div>
