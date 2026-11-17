@@ -80,6 +80,23 @@ class RensonThermostatCard extends HTMLElement {
           font-family: inherit; transition: filter .15s ease;
         }
         .cfg-btn:hover { filter: brightness(1.05); border-color: var(--primary-color); }
+        .heatwrap { margin: 12px 0 2px; }
+        .heatbox { position: relative; }
+        .heat {
+          display: flex; height: 14px; border-radius: 7px; overflow: hidden;
+          box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);
+          background: var(--secondary-background-color);
+        }
+        .heat div { height: 100%; transition: background .3s ease; }
+        .nowmark {
+          position: absolute; top: -2px; bottom: -2px; width: 2px;
+          background: var(--primary-text-color); opacity: .55;
+          border-radius: 1px;
+        }
+        .axis {
+          display: flex; justify-content: space-between;
+          font-size: .62em; color: var(--secondary-text-color); margin-top: 4px;
+        }
         .overlay {
           position: fixed; inset: 0; z-index: 1000;
           background: rgba(0,0,0,.5);
@@ -111,6 +128,13 @@ class RensonThermostatCard extends HTMLElement {
             <span class="cur"></span>
             <span class="tgt"></span>
           </div>
+        </div>
+        <div class="heatwrap">
+          <div class="heatbox">
+            <div class="heat"></div>
+            <span class="nowmark" style="left:0%"></span>
+          </div>
+          <div class="axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
         </div>
         <button class="cfg-btn">Configure schedule</button>
         <div class="overlay" style="display:none">
@@ -147,6 +171,61 @@ class RensonThermostatCard extends HTMLElement {
     this._renderSummary();
   }
 
+  _sec(t) {
+    const [h, m] = String(t).split(":").map(Number);
+    return (h || 0) * 3600 + (m || 0) * 60;
+  }
+
+  _color(temp) {
+    const stops = [
+      [255, 224, 130],
+      [255, 183, 77],
+      [255, 112, 67],
+    ];
+    const min = 8, max = 24;
+    const t = Math.max(0, Math.min(1, (temp - min) / (max - min)));
+    const seg = t < 0.5 ? 0 : 1;
+    const f = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
+    const a = stops[seg], b = stops[seg + 1];
+    const c = a.map((v, i) => Math.round(v + (b[i] - v) * f));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+
+  _nowPct() {
+    const now = new Date();
+    return ((now.getHours() * 60 + now.getMinutes()) / 1440) * 100;
+  }
+
+  _renderHeatmap(entity) {
+    const heat = this.renderRoot.querySelector(".heat");
+    const mark = this.renderRoot.querySelector(".nowmark");
+    if (!heat || !mark) return;
+    const attrs = entity.attributes || {};
+    const src = attrs.heating_schedule || {};
+    const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    const today = dayKeys[(new Date().getDay() + 6) % 7];
+    const setpoints = Object.entries(src[today] || {})
+      .map(([time, temp]) => ({ time, temp: Number(temp) }))
+      .sort((a, b) => this._sec(a.time) - this._sec(b.time));
+    if (!setpoints.length) {
+      heat.innerHTML = "";
+      mark.style.display = "none";
+      return;
+    }
+    mark.style.display = "";
+    mark.style.left = `${this._nowPct()}%`;
+    const parts = [];
+    for (let i = 0; i < setpoints.length; i++) {
+      const from = this._sec(setpoints[i].time);
+      const to = i + 1 < setpoints.length
+        ? this._sec(setpoints[i + 1].time) : 86400;
+      parts.push(
+        `<div style="width:${(to - from) / 864}%;background:${this._color(setpoints[i].temp)}"></div>`
+      );
+    }
+    heat.innerHTML = parts.join("");
+  }
+
   _renderSummary() {
     if (!this.renderRoot || !this._hass) return;
     const entity = this._entity();
@@ -164,6 +243,7 @@ class RensonThermostatCard extends HTMLElement {
       `${this._fmtTemp(attrs.current_temperature)}\u00B0`;
     this.renderRoot.querySelector(".tgt").textContent =
       `\u2192 ${this._fmtTemp(attrs.temperature)}\u00B0`;
+    this._renderHeatmap(entity);
   }
 }
 
