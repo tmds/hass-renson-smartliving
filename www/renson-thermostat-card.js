@@ -8,7 +8,7 @@
  *   type: custom:renson-thermostat-card
  *   entity: climate.praktijk
  */
-import { t } from "./renson-i18n.js?v=3";
+import { t } from "./renson-i18n.js?v=5";
 
 class RensonThermostatCard extends HTMLElement {
   static getStubConfig() {

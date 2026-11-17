@@ -284,6 +284,18 @@ class OpenMoticsClient:
         data = await self.get("/get_input_configurations")
         return cast(list[dict[str, Any]], data.get("config", []))
 
+    async def set_input_configuration(self, config: dict[str, Any]) -> None:
+        """Write a single input configuration (legacy endpoint, form params).
+
+        Only the fields present in ``config`` are written; the gateway
+        merges them into the stored input configuration.
+        """
+        await self.post(
+            "/set_input_configuration",
+            {"config": json.dumps(config)},
+            idempotent=False,
+        )
+
     async def get_output_configurations(self) -> list[dict[str, Any]]:
         data = await self.get("/get_output_configurations")
         return cast(list[dict[str, Any]], data.get("config", []))

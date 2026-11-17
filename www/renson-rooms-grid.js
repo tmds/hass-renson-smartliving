@@ -12,7 +12,7 @@
  *
  * Use in a panel view (type: panel) so the grid spans the full width.
  */
-import { t } from "./renson-i18n.js?v=4";
+import { t } from "./renson-i18n.js?v=5";
 
 class RensonRoomsGrid extends HTMLElement {
   static getStubConfig() {
@@ -142,10 +142,14 @@ class RensonRoomsGrid extends HTMLElement {
     for (const eid of covers) {
       const s = this._hass.states[eid];
       const open = s && s.state === "open";
+      const pos = s && s.attributes && s.attributes.current_position;
+      const posTag = (pos !== undefined && pos !== null && pos > 0 && pos < 100)
+        ? `<span class="pos">${pos}%</span>`
+        : "";
       chips.push(
         `<button class="chip cover ${open ? "on" : ""}" data-entity="${eid}" data-domain="cover" ` +
         `data-name="${this._shortName(s && s.attributes.friendly_name) || eid}">` +
-        `<ha-icon icon="mdi:window-shutter"></ha-icon></button>`
+        `<ha-icon icon="mdi:window-shutter"></ha-icon>${posTag}</button>`
       );
     }
     const sub = [];
@@ -293,6 +297,13 @@ class RensonRoomsGrid extends HTMLElement {
         .chip:hover::after { opacity: 1; }
         .chip.on.light { background: rgba(255,183,77,.22); color: #f5a623; border-color: rgba(245,166,35,.45); }
         .chip.on.cover { background: rgba(25,118,210,.14); color: var(--primary-color); border-color: rgba(25,118,210,.4); }
+        .chip .pos {
+          position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
+          font-size: 8.5px; font-weight: 700; line-height: 1;
+          padding: 2px 4px; border-radius: 6px;
+          background: var(--primary-color); color: #fff;
+          pointer-events: none; white-space: nowrap;
+        }
       </style>
       <div class="wrap">
         <button class="editbtn" title="${this._t("reorder_rooms")}">

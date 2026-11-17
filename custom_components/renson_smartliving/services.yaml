@@ -1,6 +1,5 @@
 set_thermostat_schedule:
-  name: Set thermostat schedule
-  description: >-
+  name: Set thermostat schedule  description: >-
     Replace the heating schedule of an OpenMotics thermostat for one,
     several or all days. Setpoints are HH:MM times with a target
     temperature; the gateway applies the schedule value from that time
@@ -60,3 +59,45 @@ set_thermostat_config:
           min: 0
           max: 360
           step: 1
+
+set_input_link:
+  name: Set input link
+  description: >-
+    Link an OpenMotics input (button) directly to an output on the
+    gateway, or unlink it. A linked input toggles its output on press,
+    even without Home Assistant running.
+  target:
+    entity:
+      integration: renson_smartliving
+      domain: event
+  fields:
+    output_entity:
+      name: Output entity
+      description: >-
+        OpenMotics light or switch to link the input to. Omit
+        output_entity and output_id to unlink the input.
+      required: false
+      selector:
+        entity:
+          multiple: false
+    output_id:
+      name: Output id
+      description: >-
+        Raw OpenMotics output id to link (advanced). Omit output_entity
+        and output_id to unlink the input.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 239
+          step: 1
+    force:
+      name: Force
+      description: >-
+        Overwrite even when the input has extended gateway actions
+        (timers, group actions, ...). Those actions are erased on the
+        gateway and cannot be restored by unlinking.
+      required: false
+      default: false
+      selector:
+        boolean:

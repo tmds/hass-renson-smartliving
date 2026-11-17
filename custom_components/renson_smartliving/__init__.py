@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
@@ -15,6 +15,7 @@ from homeassistant.helpers.typing import ConfigType
 from .api import OpenMoticsClient
 from .const import CONF_HOST, DAY_KEYS, DOMAIN, PLATFORMS
 from .coordinator import GatewayInfo, OpenMoticsCoordinator
+from .event import _has_extended_actions
 from .sync import SyncLoop
 
 _LOGGER = logging.getLogger(__name__)
@@ -55,6 +56,106 @@ SERVICE_SET_CONFIG_SCHEMA = vol.Schema(
         vol.Optional("lead_time"): vol.Coerce(int),
     }
 )
+
+SERVICE_SET_INPUT_LINK_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional("output_entity"): cv.entity_id,
+        vol.Optional("output_id"): int,
+        vol.Optional("force"): bool,
+    }
+)
+
+
+def _resolve_om_entity(
+    hass: HomeAssistant, entity_id: str
+) -> tuple[OpenMoticsCoordinator, Any]:
+    """Resolve any OpenMotics entity id to its coordinator and entity object."""
+    registry: dict[str, Any] = hass.data.setdefault(DOMAIN, {}).setdefault(
+        "om_entities", {}
+    )
+    entity = registry.get(entity_id)
+    if entity is None:
+        raise ValueError(f"Unknown OpenMotics entity: {entity_id}")
+    return entity.coordinator, entity
+
+
+def _resolve_output_id(
+    hass: HomeAssistant,
+    output_entity: str | None,
+    output_id: int | None,
+) -> int | None:
+    """Resolve the target output id; None means unlink."""
+    if output_id is not None:
+        return output_id
+    if output_entity is None:
+        return None
+    _coordinator, entity = _resolve_om_entity(hass, output_entity)
+    domain = entity.entity_id.split(".")[0]
+    if domain not in ("light", "switch"):
+        raise ValueError(
+            f"{output_entity} is not an OpenMotics light or switch"
+        )
+    output = cast("int | None", entity._om_id)  # noqa: SLF001
+    if output is None:
+        raise ValueError(f"{output_entity} has no OpenMotics output id")
+    return output
+
+
+def _update_input_config(
+    coordinator: OpenMoticsCoordinator,
+    input_id: int,
+    action: int | None,
+) -> None:
+    """Merge the written action into the local input config cache."""
+    for inp in coordinator.inputs:
+        if inp.get("id") == input_id:
+            inp["action"] = action
+            break
+    coordinator.async_set_updated_data(coordinator.data)
+
+
+async def _async_set_input_link(call: ServiceCall) -> None:
+    output_id = _resolve_output_id(
+        call.hass,
+        call.data.get("output_entity"),
+        call.data.get("output_id"),
+    )
+    action = 255 if output_id is None else output_id
+    for entity_id in call.data[ATTR_ENTITY_ID]:
+        coordinator, entity = _resolve_om_entity(call.hass, entity_id)
+        if entity.entity_id.split(".")[0] != "event":
+            raise ValueError(f"{entity_id} is not an OpenMotics input (event)")
+        input_id = entity.input_id
+        # The gateway serializer resets missing fields to their defaults, so
+        # basic_actions MUST be sent along or extended input actions (timers,
+        # group actions, ...) on the input would be wiped.
+        current = next(
+            (inp for inp in coordinator.inputs if inp.get("id") == input_id),
+            None,
+        )
+        if (
+            current is not None
+            and _has_extended_actions(current)
+            and not call.data.get("force")
+        ):
+            raise ValueError(
+                f"{entity_id} has extended gateway actions (timers, group "
+                "actions, ...). Linking it to an output erases those actions "
+                "on the gateway. Repeat with force=true to overwrite them."
+            )
+        config: dict[str, Any] = {"id": input_id, "action": action}
+        if current is not None and current.get("basic_actions"):
+            config["basic_actions"] = current["basic_actions"]
+        await coordinator.client.set_input_configuration(config)
+        _update_input_config(coordinator, input_id, None if action == 255 else action)
+        _LOGGER.info(
+            "Input link updated for %s (input %d): action=%s",
+            entity_id,
+            input_id,
+            action,
+        )
+
 
 
 def _resolve_thermostat(
@@ -187,6 +288,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         "set_thermostat_config",
         _async_set_config,
         schema=SERVICE_SET_CONFIG_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "set_input_link",
+        _async_set_input_link,
+        schema=SERVICE_SET_INPUT_LINK_SCHEMA,
     )
     return True
 

@@ -16,7 +16,7 @@ def _make_entity(
     name: str = "Kitchen",
     room_id: int | None = None,
 ) -> OpenMoticsLight:
-    return OpenMoticsLight(
+    entity = OpenMoticsLight(
         coordinator=coordinator,
         naming=EntityNaming(
             unique_id="test",
@@ -28,6 +28,8 @@ def _make_entity(
         supports_brightness=False,
         room_id=room_id,
     )
+    entity.hass = MagicMock()
+    return entity
 
 
 @pytest.fixture

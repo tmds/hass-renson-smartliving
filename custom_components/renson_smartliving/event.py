@@ -9,6 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 if TYPE_CHECKING:
     from . import OpenMoticsConfigEntry
+from .const import DOMAIN
 from .coordinator import EntityNaming, OpenMoticsCoordinator, signal_config_loaded
 from .entity import OpenMoticsEntity, remove_stale_entities
 
@@ -56,6 +57,34 @@ def create_entities(
     return entities
 
 
+def _linked_output(
+    coordinator: OpenMoticsCoordinator, input_id: int
+) -> dict[str, Any] | None:
+    """Describe the output directly linked to an input, if any."""
+    for inp in coordinator.inputs:
+        if inp.get("id") != input_id:
+            continue
+        action = inp.get("action")
+        if action is None or action >= 240:
+            return None
+        for output in coordinator.outputs:
+            if output.get("id") == action:
+                return {"id": action, "name": output.get("name")}
+        return {"id": action, "name": None}
+    return None
+
+
+def _has_extended_actions(inp: dict[str, Any]) -> bool:
+    """True when the input has extended basic actions (timers, group actions).
+
+    Writing a direct output link to such an input erases those extended
+    actions on the gateway: an input has either a direct link OR extended
+    actions, never both.
+    """
+    action = inp.get("action")
+    return action is not None and action >= 240 and bool(inp.get("basic_actions"))
+
+
 class OpenMoticsEvent(OpenMoticsEntity, EventEntity):
     """An OpenMotics event (input) entity."""
 
@@ -72,6 +101,38 @@ class OpenMoticsEvent(OpenMoticsEntity, EventEntity):
         self._input_id = input_id
         self._ws_change_type = "INPUT_CHANGE"
         self._om_id = input_id
+
+    @property
+    def input_id(self) -> int:
+        """The OpenMotics input id."""
+        return self._input_id
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        attrs: dict[str, Any] = {}
+        linked = _linked_output(self.coordinator, self._input_id)
+        if linked is not None:
+            attrs["linked_output_id"] = linked["id"]
+            attrs["linked_output_name"] = linked["name"]
+        current = next(
+            (inp for inp in self.coordinator.inputs if inp.get("id") == self._input_id),
+            None,
+        )
+        if current is not None and _has_extended_actions(current):
+            attrs["has_extended_actions"] = True
+        return attrs or None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        registry: dict[str, Any] = self.hass.data.setdefault(DOMAIN, {})
+        entities: dict[str, Any] = registry.setdefault("event_entities", {})
+        entities[self.entity_id] = self
+
+    async def async_will_remove_from_hass(self) -> None:
+        await super().async_will_remove_from_hass()
+        registry = self.hass.data.get(DOMAIN, {})
+        entities: dict[str, Any] = registry.get("event_entities", {})
+        entities.pop(self.entity_id, None)
 
     @callback
     def _handle_om_event(self, pressed: bool) -> None:
