@@ -10,7 +10,7 @@
  *   type: custom:renson-screen-timings-button
  *   entity: cover.keuken_screen_keuken
  */
-import { t } from "./renson-i18n.js?v=7";
+import { t } from "./renson-i18n.js?v=8";
 
 class RensonScreenTimingsButton extends HTMLElement {
   static getStubConfig() {
@@ -92,13 +92,18 @@ class RensonScreenTimingsButton extends HTMLElement {
           font-size: 1em; background: var(--secondary-background-color);
           color: var(--primary-text-color);
         }
-        .row { display: flex; gap: 10px; margin-top: 18px; align-items: center; }
+        .row { margin-top: 18px; }
         .save {
-          flex: 1; border: none; border-radius: 12px; padding: 10px 14px;
+          display: block; width: 100%; box-sizing: border-box;
+          border: none; border-radius: 14px; padding: 14px;
           background: var(--primary-color); color: var(--text-primary-color, #fff);
-          font-weight: 700; cursor: pointer; font-size: .9em; font-family: inherit;
+          font-weight: 700; cursor: pointer; font-size: 1em; font-family: inherit;
         }
-        .saved { font-size: .8em; color: var(--primary-color); font-weight: 600; }
+        .saved {
+          display: block; text-align: center; margin-top: 10px;
+          font-size: .85em; color: var(--primary-color); font-weight: 600;
+        }
+        .saved:empty { display: none; }
       </style>
       <button class="open">${this._t("screen_timings")}</button>
       <div class="overlay" style="display:none">
