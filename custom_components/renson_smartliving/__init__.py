@@ -41,7 +41,10 @@ SERVICE_SET_SCHEDULE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
         vol.Optional("days"): [vol.In(DAY_KEYS)],
-        vol.Required("setpoints"): [SCHEDULE_SETPOINT_SCHEMA],
+        vol.Optional("setpoints"): [SCHEDULE_SETPOINT_SCHEMA],
+        vol.Optional("week"): {
+            vol.In(DAY_KEYS): [SCHEDULE_SETPOINT_SCHEMA]
+        },
     }
 )
 
@@ -67,29 +70,36 @@ def _resolve_thermostat(
     return entity.coordinator, entity.thermostat_id
 
 
+def _convert_setpoints(setpoints: list[dict[str, Any]]) -> dict[int, Any]:
+    """Convert a setpoint list to the gateway seconds-keyed format."""
+    from .climate import time_to_seconds
+
+    return {
+        time_to_seconds(str(sp["time"])): sp["temperature"]
+        for sp in setpoints
+    }
+
+
 def _build_schedule_payload(
     coordinator: OpenMoticsCoordinator,
     thermostat_id: int,
     days: list[str] | None,
-    setpoints: list[dict[str, Any]],
+    setpoints: list[dict[str, Any]] | None,
+    week: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     """Build a heating_schedule payload, keeping unlisted days untouched."""
-    from .climate import time_to_seconds
-
     current: dict[str, Any] = {}
     for thermostat in coordinator.thermostats:
         if thermostat.get("id") == thermostat_id:
             current = thermostat.get("heating_schedule") or {}
             break
 
-    converted = {
-        time_to_seconds(str(sp["time"])): sp["temperature"]
-        for sp in setpoints
-    }
     schedule: dict[str, Any] = {}
     for day in DAY_KEYS:
-        if days is None or day in days:
-            schedule[day] = dict(converted)
+        if week is not None and day in week:
+            schedule[day] = _convert_setpoints(week[day])
+        elif week is None and (days is None or day in days):
+            schedule[day] = _convert_setpoints(setpoints or [])
         elif day in current:
             schedule[day] = dict(current[day])
     return {"heating_schedule": schedule}
@@ -113,6 +123,10 @@ def _update_local_config(
 
 
 async def _async_set_schedule(call: ServiceCall) -> None:
+    week = call.data.get("week")
+    setpoints = call.data.get("setpoints")
+    if week is None and setpoints is None:
+        raise ValueError("Provide setpoints or week")
     for entity_id in call.data[ATTR_ENTITY_ID]:
         coordinator, thermostat_id = _resolve_thermostat(
             call.hass, entity_id
@@ -121,7 +135,8 @@ async def _async_set_schedule(call: ServiceCall) -> None:
             coordinator,
             thermostat_id,
             call.data.get("days"),
-            call.data["setpoints"],
+            setpoints,
+            week,
         )
         await coordinator.client.set_thermostat_control(
             thermostat_id, payload
@@ -131,7 +146,7 @@ async def _async_set_schedule(call: ServiceCall) -> None:
             "Schedule updated for %s (thermostat %d, days: %s)",
             entity_id,
             thermostat_id,
-            call.data.get("days") or "all",
+            sorted(payload["heating_schedule"].keys()),
         )
 
 

@@ -4,7 +4,6 @@ from datetime import UTC, datetime, time, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from homeassistant.components.climate import (
     PRESET_AWAY,
     PRESET_NONE,
@@ -230,6 +229,40 @@ async def test_build_schedule_payload_keeps_other_days(
     assert all(
         day == {75600: 17.0} for day in payload_all["heating_schedule"].values()
     )
+
+
+async def test_build_schedule_payload_week(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    """A week payload replaces only the listed days."""
+    from custom_components.renson_smartliving.__init__ import (
+        _build_schedule_payload,
+    )
+
+    coordinator.thermostats = [
+        {
+            "id": 0,
+            "heating_schedule": {
+                "mon": {"0": 14},
+                "tue": {"0": 14, "25200": 19},
+                "wed": {"0": 15},
+            },
+        }
+    ]
+    payload = _build_schedule_payload(
+        coordinator,
+        0,
+        None,
+        None,
+        {
+            "mon": [{"time": "07:00", "temperature": 20}],
+            "tue": [{"time": "07:00", "temperature": 21}],
+        },
+    )
+    schedule = payload["heating_schedule"]
+    assert schedule["mon"] == {25200: 20.0}
+    assert schedule["tue"] == {25200: 21.0}
+    assert schedule["wed"] == {"0": 15}
 
 
 async def test_update_local_config_refreshes_attributes(

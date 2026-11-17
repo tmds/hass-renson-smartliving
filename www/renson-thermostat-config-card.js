@@ -122,12 +122,27 @@ class RensonThermostatConfigCard extends HTMLElement {
   }
 
   _color(temp) {
+    // App-style palette: soft yellow -> amber -> deep orange.
+    const stops = [
+      [255, 224, 130],
+      [255, 183, 77],
+      [255, 112, 67],
+    ];
     const min = 8, max = 24;
     const t = Math.max(0, Math.min(1, (temp - min) / (max - min)));
-    const hue = 200 - 160 * t; // blue -> orange/red
-    const sat = 70 + 20 * t;
-    const light = 62 - 8 * t;
-    return `hsl(${hue}, ${sat}%, ${light}%)`;
+    const seg = t < 0.5 ? 0 : 1;
+    const f = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
+    const a = stops[seg], b = stops[seg + 1];
+    const c = a.map((v, i) => Math.round(v + (b[i] - v) * f));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+
+  _roomName(entity) {
+    const name = entity.attributes && entity.attributes.friendly_name
+      ? entity.attributes.friendly_name : entity.entity_id;
+    const parts = String(name).split(") ");
+    const last = parts[parts.length - 1].trim();
+    return last.charAt(0).toUpperCase() + last.slice(1);
   }
 
   _nowPct() {
@@ -177,31 +192,36 @@ class RensonThermostatConfigCard extends HTMLElement {
         .warn { color: var(--error-color); padding: 8px; }
         .head { display: flex; justify-content: space-between; align-items: center; }
         .name {
-          font-size: 1.05em; font-weight: 600;
-          color: var(--primary-text-color); letter-spacing: .01em;
+          font-size: 1.25em; font-weight: 700;
+          color: var(--primary-text-color); letter-spacing: -.01em;
         }
         .room { font-size: .78em; color: var(--secondary-text-color); margin-top: 2px; }
         .now {
-          display: flex; align-items: baseline; gap: 6px;
+          display: flex; align-items: center; gap: 8px;
           background: var(--secondary-background-color);
-          padding: 8px 14px; border-radius: 14px;
+          padding: 10px 16px; border-radius: 16px;
         }
-        .now .t { font-size: 1.5em; font-weight: 600; color: var(--primary-text-color); }
-        .now .d { font-size: .8em; color: var(--secondary-text-color); }
-        .heatwrap { margin: 18px 0 4px; }
+        .now .t { font-size: 1.7em; font-weight: 700; color: var(--primary-text-color); }
+        .now .d {
+          font-size: .72em; color: var(--secondary-text-color);
+          line-height: 1.4; text-align: left;
+        }
+        .heatwrap { margin: 20px 0 4px; }
+        .heatbox { position: relative; }
         .heat {
-          display: flex; height: 18px; border-radius: 9px; overflow: hidden;
-          box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
-          transition: all .3s ease;
+          display: flex; height: 20px; border-radius: 10px; overflow: hidden;
+          box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);
         }
         .heat div { height: 100%; transition: background .3s ease; }
-        .nowline {
-          position: relative; height: 0; margin: -23px 0 0;
-        }
-        .nowline span {
-          position: absolute; top: 0; width: 2px; height: 18px;
-          background: var(--primary-text-color); opacity: .55;
+        .nowmark {
+          position: absolute; top: -3px; bottom: -3px; width: 2px;
+          background: var(--primary-text-color); opacity: .6;
           border-radius: 1px;
+        }
+        .nowmark::after {
+          content: ""; position: absolute; top: -4px; left: -3px;
+          width: 8px; height: 8px; border-radius: 50%;
+          background: var(--primary-text-color); opacity: .6;
         }
         .axis {
           display: flex; justify-content: space-between;
@@ -254,6 +274,7 @@ class RensonThermostatConfigCard extends HTMLElement {
           font-weight: 600; color: var(--primary-text-color);
         }
         .stepper .unit { color: var(--secondary-text-color); font-size: .8em; }
+        .sp-row .clock { color: var(--secondary-text-color); }
         .del {
           border: none; background: transparent;
           color: var(--secondary-text-color);
@@ -306,22 +327,24 @@ class RensonThermostatConfigCard extends HTMLElement {
       <ha-card>
         <div class="head">
           <div>
-            <div class="name">${attrs.friendly_name || entity.entity_id}</div>
+            <div class="name">${this._roomName(entity)}</div>
             <div class="room">Weekly schedule</div>
           </div>
           <div class="now">
-            <span class="t">${attrs.current_temperature ?? "?"}</span>
-            <span class="d">&deg;C now &middot; ${this._fmtTemp(attrs.temperature ?? 0)}&deg;C target</span>
+            <span class="t">${attrs.current_temperature ?? "?"}&deg;</span>
+            <span class="d">now<br>${this._fmtTemp(attrs.temperature ?? 0)}&deg; target</span>
           </div>
         </div>
 
         <div class="heatwrap">
-          <div class="heat">
-            ${heat.map((h) =>
-              `<div style="width:${h.width}%;background:${this._color(h.temp)}"></div>`
-            ).join("")}
+          <div class="heatbox">
+            <div class="heat">
+              ${heat.map((h) =>
+                `<div style="width:${h.width}%;background:${this._color(h.temp)}"></div>`
+              ).join("")}
+            </div>
+            <span class="nowmark" style="left:${this._nowPct()}%"></span>
           </div>
-          <div class="nowline"><span style="left:${this._nowPct()}%"></span></div>
           <div class="axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
         </div>
 
