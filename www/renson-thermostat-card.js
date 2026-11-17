@@ -8,6 +8,8 @@
  *   type: custom:renson-thermostat-card
  *   entity: climate.praktijk
  */
+import { t } from "./renson-i18n.js?v=1";
+
 class RensonThermostatCard extends HTMLElement {
   static getStubConfig() {
     return { entity: "" };
@@ -15,6 +17,7 @@ class RensonThermostatCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    this._lang = (hass.locale && hass.locale.language) || this._lang || "en";
     this._renderSummary();
     if (this._open && this._editor) {
       this._editor.hass = hass;
@@ -136,7 +139,7 @@ class RensonThermostatCard extends HTMLElement {
           </div>
           <div class="axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
         </div>
-        <button class="cfg-btn">Configure schedule</button>
+        <button class="cfg-btn">${t(this._lang, "configure_schedule")}</button>
         <div class="overlay" style="display:none">
           <div class="dialog">
             <button class="close">&times;</button>

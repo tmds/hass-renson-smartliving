@@ -5,6 +5,8 @@
  *   type: custom:renson-schedule-button
  *   entity: climate.praktijk
  */
+import { t } from "./renson-i18n.js?v=1";
+
 class RensonScheduleButton extends HTMLElement {
   static getStubConfig() {
     return { entity: "" };
@@ -12,6 +14,11 @@ class RensonScheduleButton extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    const lang = (hass.locale && hass.locale.language) || "en";
+    if (lang !== this._lang) {
+      this._lang = lang;
+      if (!this._open) this._renderShell();
+    }
     if (this._open && this._editor) this._editor.hass = hass;
   }
 
@@ -63,7 +70,7 @@ class RensonScheduleButton extends HTMLElement {
           cursor: pointer; font-size: 1.05em;
         }
       </style>
-      <button>Configure schedule</button>
+      <button>${t(this._lang, "configure_schedule")}</button>
       <div class="overlay" style="display:none">
         <div class="dialog">
           <button class="close">&times;</button>

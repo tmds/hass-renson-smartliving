@@ -12,6 +12,8 @@
  *
  * Use in a panel view (type: panel) so the grid spans the full width.
  */
+import { t } from "./renson-i18n.js?v=1";
+
 class RensonRoomsGrid extends HTMLElement {
   static getStubConfig() {
     return { rooms: [] };
@@ -19,6 +21,7 @@ class RensonRoomsGrid extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    this._lang = (hass.locale && hass.locale.language) || this._lang || "en";
     // In edit-modus NIET re-renderen op state-updates: een innerHTML-vervanging
     // tijdens een actieve drag vernietigt het gesleepte element en de drag-state.
     if (this._editMode) return;
@@ -27,6 +30,10 @@ class RensonRoomsGrid extends HTMLElement {
       this._lastSig = sig;
       this._render();
     }
+  }
+
+  _t(key, params) {
+    return t(this._lang, key, params);
   }
 
   setConfig(config) {
@@ -129,13 +136,13 @@ class RensonRoomsGrid extends HTMLElement {
       );
     }
     const sub = [];
-    if (target !== null && target !== undefined) sub.push(`${this._fmtTemp(target)}\u00B0 target`);
+    if (target !== null && target !== undefined) sub.push(`${this._fmtTemp(target)}\u00B0 ${this._t("target")}`);
     if (lights.length) {
       const on = lights.filter((e) => {
         const s = this._hass.states[e];
         return s && s.state === "on";
       }).length;
-      sub.push(`${on}/${lights.length} lights on`);
+      sub.push(this._t("lights_on", { on, total: lights.length }));
     }
     const tileTag = this._editMode ? "div" : "a";
     const hrefAttr = this._editMode ? "" : ` href="${room.path}"`;
@@ -148,7 +155,7 @@ class RensonRoomsGrid extends HTMLElement {
           </div>
           <span class="temp">${temp !== null && temp !== undefined ? `${this._fmtTemp(temp)}\u00B0` : ""}</span>
         </div>
-        ${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>Heating</span>` : ""}
+        ${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>${this._t("heating")}</span>` : ""}
         ${chips.length ? `<div class="chips">${chips.join("")}</div>` : ""}
       </${tileTag}>
     `;
@@ -255,10 +262,10 @@ class RensonRoomsGrid extends HTMLElement {
         .chip.on.cover { background: rgba(25,118,210,.14); color: var(--primary-color); border-color: rgba(25,118,210,.4); }
       </style>
       <div class="wrap">
-        <button class="editbtn" title="Reorder rooms">
+        <button class="editbtn" title="${this._t("reorder_rooms")}">
           <ha-icon icon="${this._editMode ? "mdi:check" : "mdi:pencil"}"></ha-icon>
         </button>
-        ${this._editMode ? `<span class="hint">Sleep de tegels om te herordenen, klik op het vinkje om te sluiten</span>` : ""}
+        ${this._editMode ? `<span class="hint">${this._t("edit_hint")}</span>` : ""}
         <div class="grid">
           ${rooms.map((r) => this._roomHtml(r)).join("")}
         </div>

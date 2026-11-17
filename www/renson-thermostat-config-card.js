@@ -11,6 +11,8 @@
  *   type: custom:renson-thermostat-config-card
  *   entity: climate.praktijk
  */
+import { t, dayLabels, dayLabel } from "./renson-i18n.js?v=1";
+
 class RensonThermostatConfigCard extends HTMLElement {
   static getStubConfig() {
     return { entity: "" };
@@ -19,7 +21,12 @@ class RensonThermostatConfigCard extends HTMLElement {
   set hass(hass) {
     const prev = this._hass;
     this._hass = hass;
+    this._lang = (hass.locale && hass.locale.language) || this._lang || "en";
     if (!prev || !this._edit) this._render();
+  }
+
+  _t(key, params) {
+    return t(this._lang, key, params);
   }
 
   setConfig(config) {
@@ -43,10 +50,7 @@ class RensonThermostatConfigCard extends HTMLElement {
   }
 
   _days() {
-    return [
-      ["mon", "Mo"], ["tue", "Tu"], ["wed", "We"], ["thu", "Th"],
-      ["fri", "Fr"], ["sat", "Sa"], ["sun", "Su"],
-    ];
+    return dayLabels(this._lang);
   }
 
   _schedule(entity) {
@@ -93,7 +97,7 @@ class RensonThermostatConfigCard extends HTMLElement {
     this._hass.callService(
       "renson_smartliving", "set_thermostat_schedule", data
     );
-    this._flash("Schedule saved");
+    this._flash(this._t("schedule_saved"));
   }
 
   _saveConfig() {
@@ -107,7 +111,7 @@ class RensonThermostatConfigCard extends HTMLElement {
     this._hass.callService(
       "renson_smartliving", "set_thermostat_config", data
     );
-    this._flash("Settings saved");
+    this._flash(this._t("settings_saved"));
   }
 
   _flash(msg) {
@@ -179,7 +183,10 @@ class RensonThermostatConfigCard extends HTMLElement {
       days: targetDays,
       setpoints: src,
     });
-    this._flash(`Copied ${sourceDay} to ${targetDays.join(", ")}`);
+    this._flash(this._t("copied_day_to", {
+      src: dayLabel(this._lang, sourceDay),
+      targets: targetDays.map((d) => dayLabel(this._lang, d)).join(", "),
+    }));
     this._render();
   }
 
@@ -198,7 +205,7 @@ class RensonThermostatConfigCard extends HTMLElement {
       entity_id: targetEntityId,
       week,
     });
-    this._flash(`Week copied to ${targetEntityId}`);
+    this._flash(this._t("week_copied_to", { entity: targetEntityId }));
   }
 
   _wireCopyDialog() {
@@ -217,13 +224,13 @@ class RensonThermostatConfigCard extends HTMLElement {
         if (opt === "day") {
           const src = this._selectedDay === "all" ? "mon" : this._selectedDay;
           body.innerHTML = `
-            <div style="font-size:.85em;color:var(--secondary-text-color)">Copy <b>${src}</b> to:</div>
+            <div style="font-size:.85em;color:var(--secondary-text-color)">${this._t("copy_src_to", { src: dayLabel(this._lang, src) })}</div>
             <div class="daygrid">
               ${this._days().map(([d, lbl]) =>
                 d === src ? "" : `<button data-day="${d}">${lbl}</button>`
               ).join("")}
             </div>
-            <button class="btn primary copy-go" disabled>Copy</button>
+            <button class="btn primary copy-go" disabled>${this._t("copy")}</button>
           `;
           const picked = new Set();
           body.querySelectorAll(".daygrid button").forEach((db) => {
@@ -241,12 +248,12 @@ class RensonThermostatConfigCard extends HTMLElement {
         } else {
           const ents = this._rensonClimateEntities();
           body.innerHTML = `
-            <div style="font-size:.85em;color:var(--secondary-text-color)">Copy this week to:</div>
+            <div style="font-size:.85em;color:var(--secondary-text-color)">${this._t("copy_this_week_to")}</div>
             <select class="copy-target">
-              ${ents.length === 0 ? '<option value="">No other OpenMotics thermostat found</option>' : ""}
+              ${ents.length === 0 ? `<option value="">${this._t("no_other_thermostat")}</option>` : ""}
               ${ents.map((e) => `<option value="${e.id}">${e.name}</option>`).join("")}
             </select>
-            <button class="btn primary copy-go" ${ents.length === 0 ? "disabled" : ""}>Copy week</button>
+            <button class="btn primary copy-go" ${ents.length === 0 ? "disabled" : ""}>${this._t("copy_week")}</button>
           `;
           body.querySelector(".copy-go").addEventListener("click", () => {
             const t = body.querySelector(".copy-target").value;
@@ -268,8 +275,7 @@ class RensonThermostatConfigCard extends HTMLElement {
     const entity = this._entity();
     if (!entity) {
       this.renderRoot.innerHTML =
-        `<ha-card><div class="warn">Entity not found: ` +
-        `${this._config.entity}</div></ha-card>`;
+        `<ha-card><div class="warn">${this._t("entity_not_found", { entity: this._config.entity })}</div></ha-card>`;
       return;
     }
     const attrs = entity.attributes || {};
@@ -485,11 +491,11 @@ class RensonThermostatConfigCard extends HTMLElement {
         <div class="head">
           <div>
             <div class="name">${this._roomName(entity)}</div>
-            <div class="room">Weekly schedule</div>
+            <div class="room">${this._t("weekly_schedule")}</div>
           </div>
           <div class="now">
             <span class="t">${attrs.current_temperature ?? "?"}&deg;</span>
-            <span class="d">now<br>${this._fmtTemp(attrs.temperature ?? 0)}&deg; target</span>
+            <span class="d">${this._t("now")}<br>${this._fmtTemp(attrs.temperature ?? 0)}&deg; ${this._t("target")}</span>
           </div>
         </div>
 
@@ -509,11 +515,11 @@ class RensonThermostatConfigCard extends HTMLElement {
           ${this._days().map(([d, lbl]) =>
             `<button class="${d === day ? "sel" : ""}" data-day="${d}">${lbl}</button>`
           ).join("")}
-          <button class="${day === "all" ? "sel" : ""}" data-day="all">All</button>
+          <button class="${day === "all" ? "sel" : ""}" data-day="all">${this._t("all")}</button>
         </div>
 
         <div class="sp-list">
-          ${rows.length === 0 ? `<div class="foot">No setpoints for this day yet</div>` : ""}
+          ${rows.length === 0 ? `<div class="foot">${this._t("no_setpoints")}</div>` : ""}
           ${rows.map((r) => `
             <div class="sp-row" data-day="${dayKey}" data-i="${r.time}">
               <input type="time" value="${r.time}">
@@ -523,23 +529,23 @@ class RensonThermostatConfigCard extends HTMLElement {
                 <button class="plus">+</button>
                 <span class="unit">C</span>
               </div>
-              <button class="del" title="Remove">&times;</button>
+              <button class="del" title="${this._t("remove")}">&times;</button>
             </div>
           `).join("")}
         </div>
 
-        <button class="btn ghost sp-add">+ Add setpoint</button>
+        <button class="btn ghost sp-add">${this._t("add_setpoint")}</button>
 
         <div class="cfg">
           <div class="field">
-            <label>Away</label>
+            <label>${this._t("away")}</label>
             <div class="frow">
               <input class="away-input" type="number" step="0.5" value="${attrs.away_temperature ?? ""}">
               <span class="unit">&deg;C</span>
             </div>
           </div>
           <div class="field">
-            <label>Lead time</label>
+            <label>${this._t("lead_time")}</label>
             <div class="frow">
               <input class="lead-input" type="number" step="1" value="${attrs.lead_time ?? ""}">
               <span class="unit">min</span>
@@ -548,16 +554,16 @@ class RensonThermostatConfigCard extends HTMLElement {
         </div>
 
         <div class="actions">
-          <button class="btn ghost copy-btn">Copy schedule</button>
-          <button class="btn ghost cfg-save">Save settings</button>
-          <button class="btn primary sch-save">Save schedule</button>
+          <button class="btn ghost copy-btn">${this._t("copy_schedule")}</button>
+          <button class="btn ghost cfg-save">${this._t("save_settings")}</button>
+          <button class="btn primary sch-save">${this._t("save_schedule")}</button>
           ${this._savedFlash ? `<span class="saved">${this._savedFlash}</span>` : ""}
         </div>
         <div class="copy-overlay" style="display:none">
           <div class="copy-dialog">
-            <div class="copy-title">Copy schedule</div>
-            <button class="copy-opt" data-opt="day">Copy this day to another day</button>
-            <button class="copy-opt" data-opt="week">Copy week schedule to other thermostat</button>
+            <div class="copy-title">${this._t("copy_schedule")}</div>
+            <button class="copy-opt" data-opt="day">${this._t("copy_this_day")}</button>
+            <button class="copy-opt" data-opt="week">${this._t("copy_week_other")}</button>
             <div class="copy-body" style="display:none"></div>
             <button class="copy-close">&times;</button>
           </div>
