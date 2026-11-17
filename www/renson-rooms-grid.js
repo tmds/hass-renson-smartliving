@@ -19,6 +19,9 @@ class RensonRoomsGrid extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    // In edit-modus NIET re-renderen op state-updates: een innerHTML-vervanging
+    // tijdens een actieve drag vernietigt het gesleepte element en de drag-state.
+    if (this._editMode) return;
     const sig = this._signature();
     if (sig !== this._lastSig) {
       this._lastSig = sig;
@@ -28,6 +31,9 @@ class RensonRoomsGrid extends HTMLElement {
 
   setConfig(config) {
     this._config = config;
+    // HA freezet de card-config (Object.freeze): muteren gooit een fout.
+    // Werken met een eigen kopie; alleen _persistOrder schrijft naar HA.
+    this._rooms = Array.isArray(config.rooms) ? [...config.rooms] : [];
     this._editMode = false;
     this.renderRoot = this.attachShadow({ mode: "open" });
     this._render();
@@ -75,7 +81,7 @@ class RensonRoomsGrid extends HTMLElement {
   _signature() {
     if (!this._hass) return "";
     const parts = [];
-    for (const room of this._config.rooms || []) {
+    for (const room of this._rooms) {
       const cl = room.climate ? this._hass.states[room.climate] : null;
       if (cl) parts.push(cl.state, cl.attributes.current_temperature,
         cl.attributes.temperature);
@@ -150,7 +156,7 @@ class RensonRoomsGrid extends HTMLElement {
 
   _render() {
     if (!this.renderRoot || !this._hass) return;
-    const rooms = this._config.rooms || [];
+    const rooms = this._rooms;
     this.renderRoot.innerHTML = `
       <style>
         :host { display: block; }
@@ -207,24 +213,6 @@ class RensonRoomsGrid extends HTMLElement {
         }
         .tile[draggable="true"] { cursor: grab; }
         .tile[draggable="true"]:active { cursor: grabbing; }
-        .reorder {
-          position: absolute; top: 8px; left: 10px; z-index: 2;
-          display: flex; align-items: center; gap: 4px;
-          background: var(--card-background-color, #fff);
-          border: 1px solid var(--divider-color);
-          border-radius: 10px; padding: 2px 6px;
-        }
-        .tile { position: relative; }
-        .reorder .mv {
-          border: none; background: transparent;
-          color: var(--primary-text-color);
-          cursor: pointer; font-size: .95em; padding: 2px 4px;
-        }
-        .reorder .mv:disabled { color: var(--divider-color); cursor: default; }
-        .reorder .idx {
-          font-size: .72em; color: var(--secondary-text-color);
-          min-width: 16px; text-align: center;
-        }
         .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .name { font-weight: 700; font-size: 1.05em; color: var(--primary-text-color); }
         .sub { font-size: .78em; color: var(--secondary-text-color); margin-top: 4px; }
@@ -270,7 +258,7 @@ class RensonRoomsGrid extends HTMLElement {
         <button class="editbtn" title="Reorder rooms">
           <ha-icon icon="${this._editMode ? "mdi:check" : "mdi:pencil"}"></ha-icon>
         </button>
-        ${this._editMode ? `<span class="hint">Use the arrows to reorder, click the check to finish</span>` : ""}
+        ${this._editMode ? `<span class="hint">Sleep de tegels om te herordenen, klik op het vinkje om te sluiten</span>` : ""}
         <div class="grid">
           ${rooms.map((r) => this._roomHtml(r)).join("")}
         </div>
@@ -292,38 +280,79 @@ class RensonRoomsGrid extends HTMLElement {
     });
     this.renderRoot.querySelector(".editbtn").addEventListener("click", () => {
       this._editMode = !this._editMode;
+      this._lastSig = null;
       this._render();
+      // bij het afsluiten van de edit-modus de volgorde 1x wegschrijven
+      if (!this._editMode) this._persistOrder();
     });
-    if (this._editMode) this._wireEditButtons();
+    if (this._editMode) this._wireDrag();
   }
 
-  _wireEditButtons() {
-    const tiles = [...this.renderRoot.querySelectorAll(".tile")];
-    tiles.forEach((tile, idx) => {
-      const bar = document.createElement("div");
-      bar.className = "reorder";
-      bar.innerHTML = `
-        <button class="mv" data-dir="-1" title="Move left" ${idx === 0 ? "disabled" : ""}>&larr;</button>
-        <span class="idx">${idx + 1}</span>
-        <button class="mv" data-dir="1" title="Move right" ${idx === tiles.length - 1 ? "disabled" : ""}>&rarr;</button>
-      `;
-      tile.prepend(bar);
-      bar.querySelectorAll(".mv").forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          const dir = Number(btn.dataset.dir);
-          const target = idx + dir;
-          if (target < 0 || target >= this._config.rooms.length) return;
-          const rooms = this._config.rooms;
-          const [moved] = rooms.splice(idx, 1);
-          rooms.splice(target, 0, moved);
-          this._lastSig = null;
-          this._render();
-          this._persistOrder();
-        });
+  _wireDrag() {
+    const wrap = this.renderRoot.querySelector(".wrap");
+    const grid = this.renderRoot.querySelector(".grid");
+    const tiles = [...grid.querySelectorAll(".tile")];
+    let dragEl = null;
+    tiles.forEach((tile) => {
+      tile.addEventListener("dragstart", (e) => {
+        dragEl = tile;
+        tile.classList.add("dragging");
+        // Firefox vereist setData, Chrome gebruikt het niet
+        try { e.dataTransfer.setData("text/plain", tile.dataset.path); } catch (err) { /* noop */ }
+        e.dataTransfer.effectAllowed = "move";
+      });
+      tile.addEventListener("dragend", () => {
+        tile.classList.remove("dragging");
+        tiles.forEach((t) => t.classList.remove("drop-target"));
+        dragEl = null;
+        this._commitDomOrder();
       });
     });
+    const moveUnderCursor = (e) => {
+      if (!dragEl) return;
+      const target = tiles.find((t) => {
+        if (t === dragEl) return false;
+        const r = t.getBoundingClientRect();
+        return e.clientX >= r.left && e.clientX <= r.right
+          && e.clientY >= r.top && e.clientY <= r.bottom;
+      });
+      tiles.forEach((t) => t.classList.remove("drop-target"));
+      if (!target) return;
+      target.classList.add("drop-target");
+      const r = target.getBoundingClientRect();
+      const after = e.clientX > r.left + r.width / 2;
+      grid.insertBefore(dragEl, after ? target.nextSibling : target);
+    };
+    // dragover/drop op de grid (bubbelt vanaf de tiles): overal accepteren,
+    // anders speelt Chrome de snap-back-animatie en "springt" de tile terug.
+    grid.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      moveUnderCursor(e);
+    });
+    grid.addEventListener("drop", (e) => {
+      e.preventDefault();
+      moveUnderCursor(e);
+    });
+    // ook net buiten de grid (in .wrap) accepteren: geen snap-back
+    wrap.addEventListener("dragover", (e) => e.preventDefault());
+    wrap.addEventListener("drop", (e) => e.preventDefault());
+  }
+
+  _commitDomOrder() {
+    const grid = this.renderRoot.querySelector(".grid");
+    const domPaths = [...grid.querySelectorAll(".tile")].map((t) => t.dataset.path);
+    const rooms = this._rooms;
+    const byPath = new Map(rooms.map((r) => [r.path, r]));
+    // alleen committen als de volgorde echt veranderd is én alle paths bekend
+    if (domPaths.length !== rooms.length || domPaths.some((p) => !byPath.has(p))) return;
+    const reordered = domPaths.map((p) => byPath.get(p));
+    if (reordered.every((r, i) => r === rooms[i])) return;
+    this._rooms = reordered;
+    this._lastSig = null;
+    this._render();
+    // NIET hier persisteren: de lovelace-config-save re-creëert de card en
+    // haalt de gebruiker uit de edit-modus. Persisteer bij het afsluiten (editbtn).
   }
 
   async _persistOrder() {
@@ -334,7 +363,7 @@ class RensonRoomsGrid extends HTMLElement {
       const view = config.views && config.views[0];
       const card = view && view.cards && view.cards[0];
       if (card && card.type === "custom:renson-rooms-grid") {
-        card.rooms = this._config.rooms;
+        card.rooms = this._rooms;
         await this._hass.connection.sendMessagePromise({
           type: "lovelace/config/save",
           config,
