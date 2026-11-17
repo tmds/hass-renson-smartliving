@@ -132,7 +132,7 @@ class RensonRoomsGrid extends HTMLElement {
       sub.push(`${on}/${lights.length} lights on`);
     }
     return `
-      <div class="tile" data-path="${room.path}">
+      <a class="tile" href="${room.path}" data-path="${room.path}">
         <div class="row">
           <div>
             <div class="name">${room.title}</div>
@@ -142,7 +142,7 @@ class RensonRoomsGrid extends HTMLElement {
         </div>
         ${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>Heating</span>` : ""}
         ${chips.length ? `<div class="chips">${chips.join("")}</div>` : ""}
-      </div>
+      </a>
     `;
   }
 
@@ -178,7 +178,10 @@ class RensonRoomsGrid extends HTMLElement {
           grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
           gap: 12px;
         }
-        .tile {
+        .tile, a.tile {
+          display: block;
+          text-decoration: none;
+          color: inherit;
           background: var(--card-background-color, var(--paper-card-background-color));
           border: 1px solid var(--divider-color, rgba(0,0,0,.08));
           border-radius: var(--ha-card-border-radius, 16px);
@@ -252,17 +255,17 @@ class RensonRoomsGrid extends HTMLElement {
         </div>
       </div>
     `;
-    this.renderRoot.querySelectorAll(".tile").forEach((tile) => {
+    this.renderRoot.querySelectorAll("a.tile").forEach((tile) => {
+      // native navigatie via de anchor; alleen in edit-modus blokkeren
       tile.addEventListener("click", (e) => {
-        if (e.target.closest(".chip")) return;
-        if (this._editMode) return;
-        this._navigate(tile.dataset.path);
+        if (this._editMode) e.preventDefault();
       });
     });
     this.renderRoot.querySelectorAll(".chip").forEach((chip) => {
       chip.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (this._editMode) { e.preventDefault(); return; }
+        e.preventDefault();
+        if (this._editMode) return;
         this._toggle(chip.dataset.entity, chip.dataset.domain);
       });
     });
