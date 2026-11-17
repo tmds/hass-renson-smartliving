@@ -364,7 +364,8 @@ class RensonAutomationEditor extends HTMLElement {
         .dialog input[type=text] { width: 100%; box-sizing: border-box; padding: 9px 10px;
                border: 1px solid var(--divider-color, #ccc); border-radius: 8px; font-size: 14px;
                background: var(--secondary-background-color, #fafafa); color: inherit; }
-        .steps { margin: 12px 0; }
+        .steps { margin: 12px 0; max-height: min(46vh, 420px); overflow-y: auto;
+                 overscroll-behavior: contain; padding-right: 4px; }
         .step { display: flex; align-items: center; gap: 6px; padding: 5px 6px;
                 font-size: 13px; border-radius: 8px; position: relative; }
         .step + .step { margin-top: 2px; }

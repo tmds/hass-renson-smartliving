@@ -289,6 +289,10 @@ class RensonInputLinkCard extends HTMLElement {
           padding: 9px 10px; border-radius: 10px; cursor: pointer;
           border: 1px solid transparent; font-size: .9em;
         }
+        .opts {
+          max-height: min(46vh, 420px); overflow-y: auto;
+          overscroll-behavior: contain; padding-right: 4px;
+        }
         .opt:hover { background: var(--secondary-background-color); }
         .opt.sel { border-color: var(--primary-color); background: var(--secondary-background-color); }
         .opt .dom { color: var(--secondary-text-color); font-size: .8em; }
