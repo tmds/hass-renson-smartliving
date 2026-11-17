@@ -154,6 +154,115 @@ class RensonThermostatConfigCard extends HTMLElement {
     return Number(t).toFixed(1).replace(/\.0$/, "");
   }
 
+  _rensonClimateEntities() {
+    if (!this._hass) return [];
+    return Object.values(this._hass.states)
+      .filter((s) =>
+        s.entity_id.startsWith("climate.")
+        && s.attributes && s.attributes.heating_schedule
+        && s.entity_id !== this._config.entity
+      )
+      .map((s) => ({ id: s.entity_id, name: s.attributes.friendly_name || s.entity_id }));
+  }
+
+  _copyDayToDays(sourceDay, targetDays) {
+    const entity = this._entity();
+    if (!entity || !targetDays.length) return;
+    const edit = this._editSchedule(entity);
+    const src = (edit[sourceDay] || [])
+      .slice()
+      .sort((a, b) => this._sec(a.time) - this._sec(b.time))
+      .map((sp) => ({ time: sp.time, temperature: sp.temp }));
+    for (const d of targetDays) edit[d] = JSON.parse(JSON.stringify(src));
+    this._hass.callService("renson_smartliving", "set_thermostat_schedule", {
+      entity_id: entity.entity_id,
+      days: targetDays,
+      setpoints: src,
+    });
+    this._flash(`Copied ${sourceDay} to ${targetDays.join(", ")}`);
+    this._render();
+  }
+
+  _copyWeekTo(targetEntityId) {
+    const entity = this._entity();
+    if (!entity) return;
+    const edit = this._editSchedule(entity);
+    const week = {};
+    for (const [d] of this._days()) {
+      week[d] = (edit[d] || [])
+        .slice()
+        .sort((a, b) => this._sec(a.time) - this._sec(b.time))
+        .map((sp) => ({ time: sp.time, temperature: sp.temp }));
+    }
+    this._hass.callService("renson_smartliving", "set_thermostat_schedule", {
+      entity_id: targetEntityId,
+      week,
+    });
+    this._flash(`Week copied to ${targetEntityId}`);
+  }
+
+  _wireCopyDialog() {
+    const overlay = this.renderRoot.querySelector(".copy-overlay");
+    const body = this.renderRoot.querySelector(".copy-body");
+    const close = () => { overlay.style.display = "none"; };
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close();
+    });
+    this.renderRoot.querySelector(".copy-close").addEventListener("click", close);
+    this.renderRoot.querySelectorAll(".copy-opt").forEach((b) => {
+      b.addEventListener("click", () => {
+        this.renderRoot.querySelectorAll(".copy-opt").forEach((x) => x.style.display = "none");
+        body.style.display = "block";
+        const opt = b.dataset.opt;
+        if (opt === "day") {
+          const src = this._selectedDay === "all" ? "mon" : this._selectedDay;
+          body.innerHTML = `
+            <div style="font-size:.85em;color:var(--secondary-text-color)">Copy <b>${src}</b> to:</div>
+            <div class="daygrid">
+              ${this._days().map(([d, lbl]) =>
+                d === src ? "" : `<button data-day="${d}">${lbl}</button>`
+              ).join("")}
+            </div>
+            <button class="btn primary copy-go" disabled>Copy</button>
+          `;
+          const picked = new Set();
+          body.querySelectorAll(".daygrid button").forEach((db) => {
+            db.addEventListener("click", () => {
+              const d = db.dataset.day;
+              if (picked.has(d)) { picked.delete(d); db.classList.remove("sel"); }
+              else { picked.add(d); db.classList.add("sel"); }
+              body.querySelector(".copy-go").disabled = picked.size === 0;
+            });
+          });
+          body.querySelector(".copy-go").addEventListener("click", () => {
+            this._copyDayToDays(src, [...picked]);
+            close();
+          });
+        } else {
+          const ents = this._rensonClimateEntities();
+          body.innerHTML = `
+            <div style="font-size:.85em;color:var(--secondary-text-color)">Copy this week to:</div>
+            <select class="copy-target">
+              ${ents.length === 0 ? '<option value="">No other OpenMotics thermostat found</option>' : ""}
+              ${ents.map((e) => `<option value="${e.id}">${e.name}</option>`).join("")}
+            </select>
+            <button class="btn primary copy-go" ${ents.length === 0 ? "disabled" : ""}>Copy week</button>
+          `;
+          body.querySelector(".copy-go").addEventListener("click", () => {
+            const t = body.querySelector(".copy-target").value;
+            if (t) { this._copyWeekTo(t); close(); }
+          });
+        }
+      });
+    });
+    this.renderRoot.querySelector(".copy-btn")
+      .addEventListener("click", () => {
+        overlay.style.display = "flex";
+        this.renderRoot.querySelectorAll(".copy-opt").forEach((x) => x.style.display = "block");
+        body.style.display = "none";
+      });
+  }
+
   _render() {
     if (!this.renderRoot) return;
     const entity = this._entity();
@@ -323,6 +432,54 @@ class RensonThermostatConfigCard extends HTMLElement {
         .actions .btn { width: auto; flex: 1; padding: 10px 16px; }
         .saved { color: var(--success-color); font-size: .85em; white-space: nowrap; }
         .foot { margin-top: 10px; text-align: center; font-size: .72em; color: var(--secondary-text-color); }
+        .copy-overlay {
+          position: fixed; inset: 0; z-index: 1000;
+          background: rgba(0,0,0,.45);
+          display: flex; align-items: center; justify-content: center;
+        }
+        .copy-dialog {
+          position: relative; width: 340px; max-width: 90vw;
+          background: var(--card-background-color, #fff);
+          border-radius: 16px; padding: 18px;
+          box-shadow: 0 12px 40px rgba(0,0,0,.3);
+          color: var(--primary-text-color);
+        }
+        .copy-title { font-weight: 700; margin-bottom: 12px; }
+        .copy-opt {
+          display: block; width: 100%; text-align: left;
+          border: none; background: transparent;
+          color: var(--primary-text-color);
+          font-size: 1em; padding: 12px 8px; cursor: pointer;
+          border-bottom: 1px solid var(--divider-color);
+          border-radius: 8px; font-family: inherit;
+        }
+        .copy-opt:hover { background: var(--secondary-background-color); }
+        .copy-close {
+          position: absolute; top: 8px; right: 10px;
+          border: none; background: transparent;
+          color: var(--secondary-text-color);
+          font-size: 1.2em; cursor: pointer;
+        }
+        .copy-body { margin-top: 10px; }
+        .copy-body .daygrid {
+          display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px;
+        }
+        .copy-body .daygrid button {
+          border: none; background: var(--secondary-background-color);
+          color: var(--primary-text-color); padding: 7px 12px;
+          border-radius: 10px; cursor: pointer; font-size: .85em;
+        }
+        .copy-body .daygrid button.sel {
+          background: var(--primary-color);
+        }
+        .copy-body select {
+          width: 100%; padding: 10px; border-radius: 10px;
+          border: 1px solid var(--divider-color);
+          background: var(--secondary-background-color);
+          color: var(--primary-text-color); font-size: .95em;
+          margin-bottom: 12px; font-family: inherit;
+        }
+        .copy-body .btn { margin-top: 0; }
       </style>
       <ha-card>
         <div class="head">
@@ -391,9 +548,19 @@ class RensonThermostatConfigCard extends HTMLElement {
         </div>
 
         <div class="actions">
+          <button class="btn ghost copy-btn">Copy schedule</button>
           <button class="btn ghost cfg-save">Save settings</button>
           <button class="btn primary sch-save">Save schedule</button>
           ${this._savedFlash ? `<span class="saved">${this._savedFlash}</span>` : ""}
+        </div>
+        <div class="copy-overlay" style="display:none">
+          <div class="copy-dialog">
+            <div class="copy-title">Copy schedule</div>
+            <button class="copy-opt" data-opt="day">Copy this day to another day</button>
+            <button class="copy-opt" data-opt="week">Copy week schedule to other thermostat</button>
+            <div class="copy-body" style="display:none"></div>
+            <button class="copy-close">&times;</button>
+          </div>
         </div>
       </ha-card>
     `;
@@ -435,6 +602,7 @@ class RensonThermostatConfigCard extends HTMLElement {
       .addEventListener("click", () => this._saveSchedule());
     this.renderRoot.querySelector(".cfg-save")
       .addEventListener("click", () => this._saveConfig());
+    this._wireCopyDialog();
   }
 }
 

@@ -12,22 +12,22 @@ set_thermostat_schedule:
   fields:
     days:
       name: Days
-      description: Days to update (default: all days). Ignored when week is set.
+      description: "Days to update (default: all days). Ignored when week is set."
       example: ["mon", "tue"]
       required: false
       selector:
         object:
     setpoints:
       name: Setpoints
-      description: List of {time: "HH:MM", temperature: x} entries (or use week).
+      description: "List of {time: HH:MM, temperature: x} entries (or use week)."
       required: false
       selector:
         object:
     week:
       name: Week
       description: >-
-        Full week as {day: [{time, temperature}, ...]}; days not listed
-        keep their schedule. Used to copy a week between thermostats.
+        Full week as day-keyed setpoint lists; days not listed keep
+        their schedule. Used to copy a week between thermostats.
       required: false
       selector:
         object:
