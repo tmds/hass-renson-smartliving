@@ -131,8 +131,10 @@ class RensonRoomsGrid extends HTMLElement {
       }).length;
       sub.push(`${on}/${lights.length} lights on`);
     }
+    const tileTag = this._editMode ? "div" : "a";
+    const hrefAttr = this._editMode ? "" : ` href="${room.path}"`;
     return `
-      <a class="tile" href="${room.path}" data-path="${room.path}">
+      <${tileTag} class="tile" data-path="${room.path}"${hrefAttr} draggable="${this._editMode}">
         <div class="row">
           <div>
             <div class="name">${room.title}</div>
@@ -142,7 +144,7 @@ class RensonRoomsGrid extends HTMLElement {
         </div>
         ${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>Heating</span>` : ""}
         ${chips.length ? `<div class="chips">${chips.join("")}</div>` : ""}
-      </a>
+      </${tileTag}>
     `;
   }
 
