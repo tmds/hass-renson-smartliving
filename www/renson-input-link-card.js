@@ -11,7 +11,7 @@
  *   outputs:  [light.keuken_inbouwspots, ...]            (optional; defaults to
  *              all OpenMotics lights/switches in the same area as the inputs)
  */
-import { t } from "./renson-i18n.js?v=5";
+import { t } from "./renson-i18n.js?v=6";
 
 class RensonInputLinkCard extends HTMLElement {
   static getStubConfig() {
@@ -83,21 +83,39 @@ class RensonInputLinkCard extends HTMLElement {
     if (Array.isArray(this._config.outputs) && this._config.outputs.length) {
       return this._config.outputs;
     }
-    // Fallback: OpenMotics lights/switches in the same area as the first input.
+    // All OpenMotics lights/switches (platform filter), for the room dropdown.
     const hass = this._hass;
     if (!hass || !hass.entities) return [];
-    const first = this._config.entities[0];
-    const areaId = hass.entities[first] && hass.entities[first].area_id;
-    if (!areaId) return [];
-    return Object.keys(hass.entities).filter((eid) => {
-      const info = hass.entities[eid];
+    return Object.keys(hass.states).filter((eid) => {
       const domain = eid.split(".")[0];
+      const info = hass.entities[eid];
       return (
-        info.area_id === areaId &&
         (domain === "light" || domain === "switch") &&
-        hass.states[eid]
+        info && info.platform === "renson_smartliving"
       );
     });
+  }
+
+  _outputIdOf(entityId) {
+    const st = this._hass && this._hass.states[entityId];
+    const attrId = st && st.attributes && st.attributes.openmotics_id;
+    if (attrId !== undefined) return Number(attrId);
+    const reg = this._hass && this._hass.entities && this._hass.entities[entityId];
+    const uid = reg && reg.unique_id;
+    if (!uid) return null;
+    const m = String(uid).match(/_output_(\d+)_/);
+    return m ? Number(m[1]) : null;
+  }
+
+  _roomOf(entityId) {
+    const hass = this._hass;
+    const info = hass && hass.entities && hass.entities[entityId];
+    return (info && info.area_id) || null;
+  }
+
+  _areaName(areaId) {
+    const hass = this._hass;
+    return (hass && hass.areas && hass.areas[areaId] && hass.areas[areaId].name) || areaId;
   }
 
   _render() {
@@ -163,6 +181,20 @@ class RensonInputLinkCard extends HTMLElement {
           background: var(--secondary-background-color);
           border-radius: 8px; padding: 8px 10px; margin-bottom: 10px;
         }
+        .roomrow {
+          display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+        }
+        .roomrow label { font-size: .8em; color: var(--secondary-text-color); }
+        .roomrow select {
+          flex: 1; padding: 7px 9px; border-radius: 10px;
+          border: 1px solid var(--divider-color);
+          background: var(--secondary-background-color);
+          color: var(--primary-text-color); font-family: inherit; font-size: .85em;
+        }
+        .opt .cur {
+          font-size: .75em; color: var(--primary-color); font-weight: 600;
+          margin-left: 4px;
+        }
         .opt {
           display: flex; align-items: center; gap: 10px;
           padding: 9px 10px; border-radius: 10px; cursor: pointer;
@@ -204,37 +236,82 @@ class RensonInputLinkCard extends HTMLElement {
     const st = this._hass && this._hass.states[entityId];
     const extended = !!(st && st.attributes && st.attributes.has_extended_actions);
     const outputs = this._candidateOutputs();
-    const opts = outputs
-      .map((eid) => {
-        const sel = current && current.id !== null && this._omIdOf(eid) === current.id;
-        return `
+    const currentRoom = this._roomOf(entityId);
+
+    // Rooms that actually contain candidate outputs.
+    const rooms = [...new Set(outputs.map((eid) => this._roomOf(eid)).filter(Boolean))];
+    let roomFilter = currentRoom && rooms.includes(currentRoom) ? currentRoom : "all";
+
+    const selectedId = current ? current.id : null;
+
+    const renderOpts = () => {
+      const list = roomFilter === "all"
+        ? outputs
+        : outputs.filter((eid) => this._roomOf(eid) === roomFilter);
+      return list
+        .map((eid) => {
+          const sel = selectedId !== null && this._outputIdOf(eid) === selectedId;
+          return `
           <div class="opt ${sel ? "sel" : ""}" data-entity="${eid}">
             <div>
-              <div>${this._friendly(eid)}</div>
+              <div>${this._friendly(eid)}${sel ? ' <span class="cur">' + this._t("currently_linked") + "</span>" : ""}</div>
               <div class="dom">${eid}</div>
             </div>
           </div>`;
-      })
-      .join("");
+        })
+        .join("") || `<div class="sub">${this._t("no_outputs")}</div>`;
+    };
+
+    const roomOptions = [];
+    if (currentRoom) {
+      roomOptions.push(`<option value="${currentRoom}">${this._areaName(currentRoom)}</option>`);
+    }
+    roomOptions.push(`<option value="all">${this._t("all_rooms")}</option>`);
+    for (const r of rooms) {
+      if (r !== currentRoom) {
+        roomOptions.push(`<option value="${r}">${this._areaName(r)}</option>`);
+      }
+    }
+
     overlay.innerHTML = `
       <div class="dialog">
         <button class="close">&times;</button>
         <h3>${this._friendly(entityId)}</h3>
         <div class="sub">${this._t("link_hint")}</div>
         ${extended ? `<div class="warn">${this._t("extended_warning")}</div>` : ""}
-        <div class="opts">${opts || `<div class="sub">${this._t("no_outputs")}</div>`}</div>
+        <div class="roomrow">
+          <label>${this._t("room")}</label>
+          <select class="roomsel">${roomOptions.join("")}</select>
+        </div>
+        <div class="opts">${renderOpts()}</div>
         <div class="actions">
           <button class="cancel">${t(this._lang, "cancel")}</button>
           <button class="save">${t(this._lang, "save_link")}</button>
         </div>
       </div>`;
+
     let selected = null;
-    overlay.querySelectorAll(".opt").forEach((el) => {
-      el.addEventListener("click", () => {
-        overlay.querySelectorAll(".opt").forEach((o) => o.classList.remove("sel"));
-        el.classList.add("sel");
-        selected = el.dataset.entity;
+    // Pre-select the currently linked output (even when filtered out of view).
+    if (selectedId !== null) {
+      const match = outputs.find((eid) => this._outputIdOf(eid) === selectedId);
+      if (match) selected = match;
+    }
+    const optsHost = overlay.querySelector(".opts");
+    const wireOpts = () => {
+      optsHost.querySelectorAll(".opt").forEach((el) => {
+        el.addEventListener("click", () => {
+          optsHost.querySelectorAll(".opt").forEach((o) => o.classList.remove("sel"));
+          el.classList.add("sel");
+          selected = el.dataset.entity;
+        });
       });
+    };
+    wireOpts();
+    overlay.querySelector(".roomsel").value = roomFilter;
+    overlay.querySelector(".roomsel").addEventListener("change", (e) => {
+      roomFilter = e.target.value;
+      optsHost.innerHTML = renderOpts();
+      wireOpts();
     });
     const close = () => {
       overlay.style.display = "none";
@@ -257,14 +334,7 @@ class RensonInputLinkCard extends HTMLElement {
   }
 
   _omIdOf(entityId) {
-    const st = this._hass && this._hass.states[entityId];
-    if (!st) return null;
-    // OpenMotics entity unique_ids contain "<device>-output-<id>-...".
-    const reg = this._hass.entities && this._hass.entities[entityId];
-    const uid = reg && reg.unique_id;
-    if (!uid) return null;
-    const m = String(uid).match(/_output_(\d+)_/);
-    return m ? Number(m[1]) : null;
+    return this._outputIdOf(entityId);
   }
 }
 

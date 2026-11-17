@@ -5,7 +5,7 @@
  *   type: custom:renson-schedule-button
  *   entity: climate.praktijk
  */
-import { t } from "./renson-i18n.js?v=5";
+import { t } from "./renson-i18n.js?v=6";
 
 class RensonScheduleButton extends HTMLElement {
   static getStubConfig() {

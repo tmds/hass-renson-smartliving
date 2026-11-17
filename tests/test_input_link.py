@@ -96,6 +96,7 @@ def test_event_entity_attributes(coordinator) -> None:
     coordinator.outputs = [{"id": 23, "name": "tafel licht"}]
     entity = _event_entity(coordinator, 5)
     assert entity.extra_state_attributes == {
+        "openmotics_id": 5,
         "linked_output_id": 23,
         "linked_output_name": "tafel licht",
     }
@@ -104,7 +105,7 @@ def test_event_entity_attributes(coordinator) -> None:
 def test_event_entity_attributes_unlinked(coordinator) -> None:
     coordinator.inputs = [{"id": 5, "name": "btn", "action": 255}]
     entity = _event_entity(coordinator, 5)
-    assert entity.extra_state_attributes is None
+    assert entity.extra_state_attributes == {"openmotics_id": 5}
 
 
 # -- Service --
@@ -220,7 +221,10 @@ def test_event_entity_attributes_extended_actions(coordinator) -> None:
         {"id": 5, "name": "btn", "action": 240, "basic_actions": "2,1"}
     ]
     entity = _event_entity(coordinator, 5)
-    assert entity.extra_state_attributes == {"has_extended_actions": True}
+    assert entity.extra_state_attributes == {
+        "openmotics_id": 5,
+        "has_extended_actions": True,
+    }
 
 
 def test_has_extended_actions_false_cases(coordinator) -> None:

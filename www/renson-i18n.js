@@ -51,6 +51,9 @@ const STRINGS = {
     save_link: "Save link",
     cancel: "Cancel",
     extended_warning: "This button has extended gateway actions (timers, group actions, ...). Linking it to an output erases those actions and they cannot be restored by unlinking.",
+    room: "Room",
+    all_rooms: "All rooms",
+    currently_linked: "currently linked",
   },
   nl: {
     hvac_mode_heating: "HVAC-modus: verwarming",
@@ -93,6 +96,9 @@ const STRINGS = {
     save_link: "Koppeling opslaan",
     cancel: "Annuleren",
     extended_warning: "Deze knop heeft uitgebreide gateway-acties (timers, groepsacties, ...). Koppeling aan een output wist die acties; ontkoppelen herstelt ze niet.",
+    room: "Ruimte",
+    all_rooms: "Alle ruimtes",
+    currently_linked: "nu gekoppeld",
   },
 };
 

@@ -109,7 +109,8 @@ class OpenMoticsEvent(OpenMoticsEntity, EventEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        attrs: dict[str, Any] = {}
+        attrs: dict[str, Any] = {"openmotics_id": self._input_id}
+        linked = _linked_output(self.coordinator, self._input_id)
         linked = _linked_output(self.coordinator, self._input_id)
         if linked is not None:
             attrs["linked_output_id"] = linked["id"]

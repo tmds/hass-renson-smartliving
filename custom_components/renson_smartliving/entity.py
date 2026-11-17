@@ -85,6 +85,13 @@ class OpenMoticsEntity(CoordinatorEntity[OpenMoticsCoordinator]):
                 updates["area_id"] = area_id
         ent_reg.async_update_entity(self.entity_id, **updates)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Expose the raw OpenMotics id (cards use it to map entity -> id)."""
+        if self._om_id is None:
+            return None
+        return {"openmotics_id": self._om_id}
+
     @callback
     def _handle_om_event(self, *_args: Any) -> None:
         self.async_write_ha_state()
