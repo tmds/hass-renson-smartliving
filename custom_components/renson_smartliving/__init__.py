@@ -95,6 +95,23 @@ def _build_schedule_payload(
     return {"heating_schedule": schedule}
 
 
+def _update_local_config(
+    coordinator: OpenMoticsCoordinator,
+    thermostat_id: int,
+    updates: dict[str, Any],
+) -> None:
+    """Merge written config fields into the local control list.
+
+    THERMOSTAT_CHANGE events only carry status, so without this the
+    schedule attributes would be stale until the next reconnect.
+    """
+    for thermostat in coordinator.thermostats:
+        if thermostat.get("id") == thermostat_id:
+            thermostat.update(updates)
+            break
+    coordinator._signal_entity("THERMOSTAT_CHANGE", thermostat_id)  # noqa: SLF001
+
+
 async def _async_set_schedule(call: ServiceCall) -> None:
     for entity_id in call.data[ATTR_ENTITY_ID]:
         coordinator, thermostat_id = _resolve_thermostat(
@@ -109,6 +126,7 @@ async def _async_set_schedule(call: ServiceCall) -> None:
         await coordinator.client.set_thermostat_control(
             thermostat_id, payload
         )
+        _update_local_config(coordinator, thermostat_id, payload)
         _LOGGER.info(
             "Schedule updated for %s (thermostat %d, days: %s)",
             entity_id,
@@ -132,6 +150,7 @@ async def _async_set_config(call: ServiceCall) -> None:
         await coordinator.client.set_thermostat_control(
             thermostat_id, payload
         )
+        _update_local_config(coordinator, thermostat_id, payload)
         _LOGGER.info(
             "Config updated for %s (thermostat %d): %s",
             entity_id,

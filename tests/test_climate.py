@@ -230,3 +230,32 @@ async def test_build_schedule_payload_keeps_other_days(
     assert all(
         day == {75600: 17.0} for day in payload_all["heating_schedule"].values()
     )
+
+
+async def test_update_local_config_refreshes_attributes(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    """After a schedule write the attributes reflect the change at once."""
+    from custom_components.renson_smartliving.__init__ import (
+        _update_local_config,
+    )
+
+    _load_status(coordinator)
+    climate = _make_climate(coordinator)
+    coordinator.thermostats = [
+        {
+            "id": 0,
+            "name": "Living",
+            "room": 2,
+            "away_heating": 13.0,
+            "early_heating": 0,
+            "heating_schedule": {"mon": {"0": 14}},
+        }
+    ]
+
+    _update_local_config(
+        coordinator, 0, {"early_heating": 30, "away_heating": 12.0}
+    )
+    attrs = climate.extra_state_attributes
+    assert attrs["lead_time"] == 30
+    assert attrs["away_temperature"] == 12.0
