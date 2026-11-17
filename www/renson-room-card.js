@@ -144,12 +144,14 @@ class RensonRoomCard extends HTMLElement {
         .temp { font-size: 1.7em; font-weight: 700; color: var(--primary-text-color); }
         .sub { font-size: .78em; color: var(--secondary-text-color); margin-top: 4px; }
         .badge {
-          display: inline-block; padding: 3px 10px; border-radius: 10px;
+          display: inline-flex; align-items: center; gap: 4px;
+          padding: 3px 10px; border-radius: 10px;
           font-size: .72em; font-weight: 600; margin-top: 8px;
           background: var(--secondary-background-color);
           color: var(--secondary-text-color);
         }
         .badge.heat { background: rgba(255,112,67,.18); color: #e8602c; }
+        .badge ha-icon { --mdc-icon-size: 13px; }
         .chips { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
         .chip {
           position: relative;
@@ -183,7 +185,7 @@ class RensonRoomCard extends HTMLElement {
           <div>
             <div class="name">${this._config.title}</div>
             <div class="sub">${sub.join(" &middot; ") || "&nbsp;"}</div>
-            ${heat ? `<span class="badge heat">Heating schedule active</span>` : ""}
+            ${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>Heating</span>` : ""}
           </div>
           <div class="row">
             <span class="temp">${temp !== null && temp !== undefined ? `${this._fmtTemp(temp)}\u00B0` : ""}</span>
