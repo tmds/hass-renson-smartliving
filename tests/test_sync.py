@@ -68,13 +68,56 @@ def _make_client() -> AsyncMock:
     client.trigger_sync = AsyncMock()
     client.get_output_status = AsyncMock(return_value=SAMPLE_OUTPUT_STATUS)
     client.get_shutter_status = AsyncMock(return_value=SAMPLE_SHUTTER_STATUS)
+    client.get_thermostat_control = AsyncMock(return_value=[])
     client.get_input_configurations = AsyncMock(
         return_value=SAMPLE_CONFIG["INPUT_CONTROL"]
     )
+    client.get_output_configurations = AsyncMock(
+        return_value=SAMPLE_CONFIG["OUTPUT_CONTROL"]
+    )
+    client.get_shutter_configurations = AsyncMock(
+        return_value=SAMPLE_CONFIG["SHUTTER_CONTROL"]
+    )
+    client.get_sensor_configurations = AsyncMock(
+        return_value=SAMPLE_CONFIG["SENSOR_CONTROL"]
+    )
+    client.get_room_configurations = AsyncMock(
+        return_value=SAMPLE_CONFIG["ROOM_CONTROL"]
+    )
+    client.get_group_action_configurations = AsyncMock(
+        return_value=SAMPLE_CONFIG["GROUP_ACTION_CONTROL"]
+    )
+    client.get_platform_details = AsyncMock(return_value=PLATFORM_DETAILS)
     client.get_version = AsyncMock(return_value=VERSION_REST)
     client.close = AsyncMock()
     client.reset_session = MagicMock()
     return client
+
+
+async def test_rest_config_fallback_on_missing_sync_api() -> None:
+    """Firmware without the sync control API collects config via REST."""
+    from custom_components.renson_smartliving.api import OpenMoticsError
+
+    ws = FakeWS([])
+    client = _make_client()
+    client.connect_events.return_value = ws
+    client.trigger_sync = AsyncMock(
+        side_effect=OpenMoticsError("HTTP 404", status=404)
+    )
+
+    on_config = MagicMock()
+    on_full_update = MagicMock()
+    loop = SyncLoop(client, on_config, on_full_update, MagicMock())
+    loop.start()
+    await asyncio.sleep(0.1)
+    await loop.stop()
+
+    on_config.assert_called_once()
+    config = on_config.call_args[0][0]
+    assert config["OUTPUT_CONTROL"] == SAMPLE_CONFIG["OUTPUT_CONTROL"]
+    assert config["ROOM_CONTROL"] == SAMPLE_CONFIG["ROOM_CONTROL"]
+    assert config["VERSION"] == {"gateway": "3.11.1", "master": "3.143.131"}
+    on_full_update.assert_called_once()
 
 
 async def test_collect_config_complete() -> None:

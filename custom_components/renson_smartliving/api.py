@@ -284,6 +284,26 @@ class OpenMoticsClient:
         data = await self.get("/get_input_configurations")
         return data.get("config", [])
 
+    async def get_output_configurations(self) -> list[dict[str, Any]]:
+        data = await self.get("/get_output_configurations")
+        return data.get("config", [])
+
+    async def get_shutter_configurations(self) -> list[dict[str, Any]]:
+        data = await self.get("/get_shutter_configurations")
+        return data.get("config", [])
+
+    async def get_sensor_configurations(self) -> list[dict[str, Any]]:
+        data = await self.get("/get_sensor_configurations")
+        return data.get("config", [])
+
+    async def get_room_configurations(self) -> list[dict[str, Any]]:
+        data = await self.get("/get_room_configurations")
+        return data.get("config", [])
+
+    async def get_group_action_configurations(self) -> list[dict[str, Any]]:
+        data = await self.get("/get_group_action_configurations")
+        return data.get("config", [])
+
     # -- Commands --
 
     async def set_output(
