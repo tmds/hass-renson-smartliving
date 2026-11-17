@@ -117,10 +117,13 @@ class RensonRoomCard extends HTMLElement {
     const temp = climate ? climate.attributes.current_temperature : null;
     const target = climate ? climate.attributes.temperature : null;
     const lights = this._lightsOn();
-    // Badge alleen bij effectief verwarmen (hvac_action), niet bij mode "heat".
-    const heat = climate && climate.attributes
-      && (climate.attributes.hvac_action === "heating"
-        || (climate.attributes.hvac_action === undefined && climate.state === "heat"));
+    // Badge op hvac_action: zonnetje bij heating, vriesicoontje bij cooling.
+    const action = climate && climate.attributes ? climate.attributes.hvac_action : undefined;
+    const heat = action === "heating" || action === "preheating"
+      || action === "defrosting"
+      || (action === undefined && climate && climate.state === "heat");
+    const cool = action === "cooling" || action === "drying"
+      || action === "fan";
     const sub = [];
     if (temp !== null && temp !== undefined) {
       sub.push(`${this._fmtTemp(target)}\u00B0 target`);
@@ -156,6 +159,7 @@ class RensonRoomCard extends HTMLElement {
           color: var(--secondary-text-color);
         }
         .badge.heat { background: rgba(255,112,67,.18); color: #e8602c; }
+        .badge.cool { background: rgba(25,118,210,.14); color: var(--primary-color); }
         .badge ha-icon { --mdc-icon-size: 13px; }
         .chips { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
         .chip {
@@ -190,7 +194,8 @@ class RensonRoomCard extends HTMLElement {
           <div>
             <div class="name">${this._config.title}</div>
             <div class="sub">${sub.join(" &middot; ") || "&nbsp;"}</div>
-            ${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>Heating</span>` : ""}
+            ${heat ? `<span class="badge heat"><ha-icon icon="mdi:white-balance-sunny"></ha-icon>Heating</span>` : ""}
+            ${cool ? `<span class="badge cool"><ha-icon icon="mdi:snowflake"></ha-icon>Cooling</span>` : ""}
           </div>
           <div class="row">
             <span class="temp">${temp !== null && temp !== undefined ? `${this._fmtTemp(temp)}\u00B0` : ""}</span>

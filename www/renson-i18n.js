@@ -12,6 +12,7 @@
 const STRINGS = {
   en: {
     heating: "Heating",
+    cooling: "Cooling",
     reorder_rooms: "Reorder rooms",
     edit_hint: "Drag the tiles to reorder, click the check to finish",
     lights_on: "{on}/{total} lights on",
@@ -43,6 +44,7 @@ const STRINGS = {
   },
   nl: {
     heating: "Verwarming",
+    cooling: "Koeling",
     reorder_rooms: "Kamers herordenen",
     edit_hint: "Sleep de tegels om te herordenen, klik op het vinkje om te sluiten",
     lights_on: "{on}/{total} lichten aan",

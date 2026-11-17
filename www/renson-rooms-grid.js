@@ -12,7 +12,7 @@
  *
  * Use in a panel view (type: panel) so the grid spans the full width.
  */
-import { t } from "./renson-i18n.js?v=1";
+import { t } from "./renson-i18n.js?v=2";
 
 class RensonRoomsGrid extends HTMLElement {
   static getStubConfig() {
@@ -113,11 +113,15 @@ class RensonRoomsGrid extends HTMLElement {
     const cl = room.climate ? this._hass.states[room.climate] : null;
     const temp = cl ? cl.attributes.current_temperature : null;
     const target = cl ? cl.attributes.temperature : null;
-    // Badge alleen als er effectief verwarmd wordt: hvac_action (uit
-    // steering_power), niet de hvac_mode (die is bij heating-only altijd "heat").
-    const heat = cl && cl.attributes
-      && (cl.attributes.hvac_action === "heating"
-        || (cl.attributes.hvac_action === undefined && cl.state === "heat"));
+    // Badge op hvac_action (uit steering_power), niet op de hvac_mode:
+    // zonnetje bij heating, vriesicoontje bij cooling. Preheating/defrosting
+    // tellen als heating, drying/fan als cooling (zelfde mapping als HomeKit).
+    const action = cl && cl.attributes ? cl.attributes.hvac_action : undefined;
+    const heat = action === "heating" || action === "preheating"
+      || action === "defrosting"
+      || (action === undefined && cl && cl.state === "heat");
+    const cool = action === "cooling" || action === "drying"
+      || action === "fan";
     const lights = room.lights || [];
     const covers = room.covers || [];
     const chips = [];
@@ -159,7 +163,8 @@ class RensonRoomsGrid extends HTMLElement {
           </div>
           <span class="temp">${temp !== null && temp !== undefined ? `${this._fmtTemp(temp)}\u00B0` : ""}</span>
         </div>
-        ${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>${this._t("heating")}</span>` : ""}
+        ${heat ? `<span class="badge heat"><ha-icon icon="mdi:white-balance-sunny"></ha-icon>${this._t("heating")}</span>` : ""}
+        ${cool ? `<span class="badge cool"><ha-icon icon="mdi:snowflake"></ha-icon>${this._t("cooling")}</span>` : ""}
         ${chips.length ? `<div class="chips">${chips.join("")}</div>` : ""}
       </${tileTag}>
     `;
@@ -236,6 +241,7 @@ class RensonRoomsGrid extends HTMLElement {
           color: var(--secondary-text-color);
         }
         .badge.heat { background: rgba(255,112,67,.18); color: #e8602c; }
+        .badge.cool { background: rgba(25,118,210,.14); color: var(--primary-color); }
         .badge ha-icon { --mdc-icon-size: 13px; }
         .chips { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
         .chip {
