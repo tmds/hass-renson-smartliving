@@ -1,0 +1,122 @@
+/**
+ * Renson room card: clean entry tile for one room.
+ *
+ * Shows room name, current temperature and lights-on count, and
+ * navigates to the room view on click.
+ *
+ * Config:
+ *   type: custom:renson-room-card
+ *   path: /lovelace/badkamer-beneden
+ *   title: Badkamer beneden
+ *   climate: climate.badkamer_beneden
+ *   lights: [light.x, light.y]
+ */
+class RensonRoomCard extends HTMLElement {
+  static getStubConfig() {
+    return { path: "", title: "", climate: "" };
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  setConfig(config) {
+    if (!config.path || !config.title) {
+      throw new Error("path and title are required");
+    }
+    this._config = config;
+    this.renderRoot = this.attachShadow({ mode: "open" });
+  }
+
+  getCardSize() {
+    return 2;
+  }
+
+  _fmtTemp(t) {
+    return t === undefined || t === null ? "?" : Number(t).toFixed(1).replace(/\.0$/, "");
+  }
+
+  _lightsOn() {
+    const lights = this._config.lights || [];
+    if (!this._hass) return { on: 0, total: lights.length };
+    const on = lights.filter((e) => {
+      const s = this._hass.states[e];
+      return s && s.state === "on";
+    }).length;
+    return { on, total: lights.length };
+  }
+
+  _navigate() {
+    window.history.pushState(null, "", this._config.path);
+    window.dispatchEvent(new Event("location-changed"));
+  }
+
+  _render() {
+    if (!this.renderRoot || !this._hass) return;
+    const climate = this._config.climate
+      ? this._hass.states[this._config.climate] : null;
+    const temp = climate ? climate.attributes.current_temperature : null;
+    const target = climate ? climate.attributes.temperature : null;
+    const lights = this._lightsOn();
+    const heat = climate && climate.state === "heat";
+    const sub = [];
+    if (temp !== null && temp !== undefined) {
+      sub.push(`${this._fmtTemp(target)}\u00B0 target`);
+    }
+    if (lights.total) sub.push(`${lights.on}/${lights.total} lights on`);
+
+    this.renderRoot.innerHTML = `
+      <style>
+        :host { display: block; }
+        ha-card {
+          padding: 16px 18px;
+          border-radius: var(--ha-card-border-radius, 16px);
+          background: var(--card-background-color, var(--paper-card-background-color));
+          border: 1px solid var(--divider-color, rgba(0,0,0,.08));
+          cursor: pointer;
+          transition: border-color .15s ease, transform .05s ease;
+          display: block;
+        }
+        ha-card:hover { border-color: var(--primary-color); }
+        ha-card:active { transform: scale(.99); }
+        .row { display: flex; justify-content: space-between; align-items: center; }
+        .name { font-weight: 700; font-size: 1.05em; color: var(--primary-text-color); }
+        .chev { color: var(--secondary-text-color); font-size: 1.2em; }
+        .temp { font-size: 1.7em; font-weight: 700; color: var(--primary-text-color); }
+        .sub { font-size: .78em; color: var(--secondary-text-color); margin-top: 4px; }
+        .badge {
+          display: inline-block; padding: 3px 10px; border-radius: 10px;
+          font-size: .72em; font-weight: 600; margin-top: 8px;
+          background: var(--secondary-background-color);
+          color: var(--secondary-text-color);
+        }
+        .badge.heat { background: rgba(255,112,67,.18); color: #e8602c; }
+      </style>
+      <ha-card>
+        <div class="row">
+          <div>
+            <div class="name">${this._config.title}</div>
+            <div class="sub">${sub.join(" &middot; ") || "&nbsp;"}</div>
+            ${heat ? `<span class="badge heat">Heating schedule active</span>` : ""}
+          </div>
+          <div class="row">
+            <span class="temp">${temp !== null && temp !== undefined ? `${this._fmtTemp(temp)}\u00B0` : ""}</span>
+            <span class="chev">&rsaquo;</span>
+          </div>
+        </div>
+      </ha-card>
+    `;
+    this.renderRoot.querySelector("ha-card")
+      .addEventListener("click", () => this._navigate());
+  }
+}
+
+customElements.define("renson-room-card", RensonRoomCard);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "renson-room-card",
+  name: "Renson Room Card",
+  description: "Clean room entry tile that navigates to the room view",
+});
