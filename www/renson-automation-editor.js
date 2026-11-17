@@ -99,7 +99,8 @@ function decode(pairs) {
     const a = pairs[i], n = pairs[i + 1];
     let s = null;
     if (a === 240) {
-      s = { 0: "if", 1: "and", 2: "or", 10: "then", 20: "else", 255: "endif" }[n];
+      const kw = { 0: "if", 1: "and", 2: "or", 10: "then", 20: "else", 255: "endif" }[n];
+      s = kw ? { kind: kw } : null;
     } else if (a === 160) s = { kind: "output", op: "off", id: n };
     else if (a === 161) s = { kind: "output", op: "on", id: n };
     else if (a === 162) s = { kind: "output", op: "toggle", id: n };
@@ -158,12 +159,22 @@ class RensonAutomationEditor extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     const lang = (hass.locale && hass.locale.language) || this._lang || "en";
-    const sig = "editor" + lang + (this._data ? this._data.actions.length : "-");
+    const count = this._data && this._data.actions ? this._data.actions.length : "-";
+    const sig = "editor" + lang + count;
     if (sig !== this._lastSig && !this._open) {
       this._lastSig = sig;
       this._lang = lang;
       if (!this._data && !this._loading) this._load();
       else if (this.renderRoot) this._render();
+    }
+    // The coordinator syncs its device name maps shortly AFTER HA start; if
+    // the card loaded before that, retry until the name maps arrive.
+    if (
+      this._data && !(this._data.outputs || []).length && !this._loading
+      && Date.now() > (this._retryAt || 0)
+    ) {
+      this._retryAt = Date.now() + 10000;
+      this._load();
     }
   }
 
@@ -181,10 +192,18 @@ class RensonAutomationEditor extends HTMLElement {
     this._loading = true;
     this._error = null;
     try {
-      const resp = await this._hass.callService(
+      const raw = await this._hass.callService(
         "renson_smartliving", "get_group_actions", {}, undefined, undefined, true
       );
-      this._data = resp || {};
+      // callService resolves to {context, response} when returnResponse is set
+      const resp = raw && raw.response ? raw.response : raw;
+      if (!resp || !Array.isArray(resp.actions)) {
+        this._error = "Unexpected service response"
+            + (resp ? ": " + JSON.stringify(resp).slice(0, 200) : " (null)");
+        this._data = null;
+      } else {
+        this._data = resp;
+      }
     } catch (err) {
       this._error = String(err && err.message ? err.message : err);
     }
@@ -298,8 +317,7 @@ class RensonAutomationEditor extends HTMLElement {
     const lang = this._lang;
     const data = this._data;
     const rows = data
-      ? (data.actions || []).filter((ga) => ga.name || ga.actions).map((ga) => `
-        <div class="row" data-id="${ga.id}">
+      ? (data.actions || []).filter((ga) => ga.name || ga.actions).map((ga) => `        <div class="row" data-id="${ga.id}">
           <div class="rowmain">
             <div class="rowname">${ga.name ? this._esc(ga.name) : this._t("unnamed") + " #" + ga.id}
               ${ga.internal ? `<span class="tag warn">${this._t("tag_internal")}</span>` : ""}
@@ -311,7 +329,7 @@ class RensonAutomationEditor extends HTMLElement {
             <button class="btn run" data-id="${ga.id}">${this._t("run")}</button>
             <button class="btn edit" data-id="${ga.id}">${this._t("edit")}</button>
           </div>
-        </div>`)
+        </div>`).join("")
       : "";
     const empty = data
       ? `<button class="btn new">${this._t("new_automation")}</button>`
@@ -347,10 +365,30 @@ class RensonAutomationEditor extends HTMLElement {
                border: 1px solid var(--divider-color, #ccc); border-radius: 8px; font-size: 14px;
                background: var(--secondary-background-color, #fafafa); color: inherit; }
         .steps { margin: 12px 0; }
-        .step { display: flex; align-items: center; gap: 6px; padding: 5px 0;
-                border-bottom: 1px dashed var(--divider-color, #eee); font-size: 13px; }
-        .step.kw { font-weight: 700; }
-        .step .grow { flex: 1; }
+        .step { display: flex; align-items: center; gap: 6px; padding: 5px 6px;
+                font-size: 13px; border-radius: 8px; position: relative; }
+        .step + .step { margin-top: 2px; }
+        .step .grow { flex: 1; min-width: 0; }
+        .step ha-icon { --mdc-icon-size: 18px; flex-shrink: 0;
+                        color: var(--secondary-text-color, #888); }
+        .actrow { background: var(--secondary-background-color, rgba(127,127,127,.08)); }
+        .actrow .sicon { color: var(--primary-color, #03a9f4); }
+        .kwrow { border-left: 3px solid var(--divider-color, #ccc); }
+        .kwrow ha-icon { color: inherit; }
+        .kwpill { font-weight: 700; font-size: 11px; letter-spacing: .5px;
+                  padding: 2px 10px; border-radius: 10px; color: #fff; }
+        .kw-if .kwpill { background: #1976d2; }
+        .kw-if { border-left-color: #1976d2; }
+        .kw-and .kwpill, .kw-or .kwpill { background: #7b1fa2; }
+        .kw-and, .kw-or { border-left-color: #7b1fa2; }
+        .kw-then .kwpill { background: #388e3c; }
+        .kw-then { border-left-color: #388e3c; }
+        .kw-else .kwpill { background: #f57c00; }
+        .kw-else { border-left-color: #f57c00; }
+        .kw-endif .kwpill { background: var(--secondary-text-color, #888); }
+        .kw-endif { border-left-color: var(--secondary-text-color, #888); }
+        .kw-if, .kw-and, .kw-or { color: var(--primary-text-color, #111); }
+        .kwrow ha-icon { color: var(--primary-text-color, #111); }
         .mini { border: none; background: transparent; cursor: pointer; font-size: 14px;
                 color: var(--secondary-text-color, #888); padding: 2px 5px; border-radius: 6px; }
         .mini:hover { background: var(--secondary-background-color, #eee); }
@@ -413,7 +451,7 @@ class RensonAutomationEditor extends HTMLElement {
 
   _openNew() {
     this._open = true;
-    const used = new Set((this._data.actions || [])
+    const used = new Set(((this._data && this._data.actions) || [])
       .filter((g) => g.name || g.actions).map((g) => g.id));
     let id = 0;
     while (used.has(id) && id < 256) id++;
@@ -425,15 +463,78 @@ class RensonAutomationEditor extends HTMLElement {
     const overlay = this.renderRoot.querySelector(".overlay");
     overlay.style.display = "flex";
 
+    const KW_META = {
+      if: { icon: "mdi:code-if", cls: "kw-if" },
+      and: { icon: "mdi:code-equal", cls: "kw-and" },
+      or: { icon: "mdi:code-braces", cls: "kw-or" },
+      then: { icon: "mdi:arrow-right-thick", cls: "kw-then" },
+      else: { icon: "mdi:debug-step-over", cls: "kw-else" },
+      endif: { icon: "mdi:code-not-equal-variant", cls: "kw-endif" },
+    };
+
+    const STEP_ICON = (s) => {
+      switch (s.kind) {
+        case "output":
+          if (s.op === "off") return "mdi:lightbulb-off";
+          if (s.op === "on") return "mdi:lightbulb-on";
+          if (s.op === "toggle") return "mdi:lightbulb";
+          if (s.op === "on_timer") return "mdi:timer-outline";
+          if (s.op === "dim_min" || s.op === "dim_max") return "mdi:lightbulb-outline";
+          return "mdi:lightbulb-on-60";
+        case "shutter":
+          if (s.op === "up") return "mdi:arrow-up-bold-box-outline";
+          if (s.op === "down") return "mdi:arrow-down-bold-box-outline";
+          if (s.op === "stop") return "mdi:stop-circle-outline";
+          return "mdi:swap-vertical";
+        case "cond":
+          return s.what.startsWith("input") ? "mdi:gesture-tap-button" : "mdi:eye-outline";
+        case "all_off": return "mdi:lightbulb-group-off-outline";
+        case "virtual_input": return "mdi:gesture-tap";
+        case "input_enable": return "mdi:button-cursor";
+        case "bit": return "mdi:flag-outline";
+        case "run_action": return "mdi:play-circle-outline";
+        case "raw": return "mdi:alert-octagon-outline";
+        default: return "mdi:help-circle-outline";
+      }
+    };
+
+    // Indentation: IF opens a block, THEN/ELSE stay at the IF level, branch
+    // contents indent one level, ENDIF closes. Actions outside blocks: 0.
+    const depths = [];
+    let openIfs = 0;
+    for (const s of steps) {
+      if (s.kind === "if") { depths.push(openIfs); openIfs++; }
+      else if (s.kind === "and" || s.kind === "or") depths.push(openIfs);
+      else if (s.kind === "then" || s.kind === "else") depths.push(Math.max(0, openIfs - 1));
+      else if (s.kind === "endif") { openIfs = Math.max(0, openIfs - 1); depths.push(openIfs); }
+      else depths.push(openIfs);
+    }
+
     const renderSteps = () => {
       const list = this.renderRoot.querySelector(".steps");
-      list.innerHTML = steps.map((s, i) => `
-        <div class="step ${this._isBlockKeyword(s) ? "kw" : ""}">
+      list.innerHTML = steps.map((s, i) => {
+        const kw = KW_META[s.kind];
+        const depth = depths[i] || 0;
+        if (kw) {
+          return `
+        <div class="step kwrow ${kw.cls}" style="padding-left:${depth * 18}px" data-i="${i}">
+          <ha-icon icon="${kw.icon}"></ha-icon>
+          <span class="kwpill">${this._esc(this._stepText(s))}</span>
+          <span class="grow"></span>
+          <button class="mini up" data-i="${i}" title="up">&#8593;</button>
+          <button class="mini dn" data-i="${i}" title="down">&#8595;</button>
+          <button class="mini del" data-i="${i}" title="remove">&#10005;</button>
+        </div>`;
+        }
+        return `
+        <div class="step actrow" style="padding-left:${(depth + 1) * 18}px" data-i="${i}">
+          <ha-icon class="sicon" icon="${STEP_ICON(s)}"></ha-icon>
           <span class="grow">${this._esc(this._stepText(s))}</span>
           <button class="mini up" data-i="${i}" title="up">&#8593;</button>
           <button class="mini dn" data-i="${i}" title="down">&#8595;</button>
           <button class="mini del" data-i="${i}" title="remove">&#10005;</button>
-        </div>`).join("") || `<div class="rowsum">${this._t("no_steps")}</div>`;
+        </div>`;
+      }).join("") || `<div class="rowsum">${this._t("no_steps")}</div>`;
       for (const b of list.querySelectorAll(".up")) b.addEventListener("click", () => {
         const i = Number(b.dataset.i);
         if (i > 0) { [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]]; renderSteps(); }
