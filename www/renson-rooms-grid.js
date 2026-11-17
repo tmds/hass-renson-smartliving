@@ -28,6 +28,7 @@ class RensonRoomsGrid extends HTMLElement {
 
   setConfig(config) {
     this._config = config;
+    this._editMode = false;
     this.renderRoot = this.attachShadow({ mode: "open" });
     this._render();
   }
@@ -151,6 +152,27 @@ class RensonRoomsGrid extends HTMLElement {
     this.renderRoot.innerHTML = `
       <style>
         :host { display: block; }
+        .wrap { position: relative; padding: 18px 22px; }
+        .editbtn {
+          position: absolute; top: 12px; right: 14px; z-index: 3;
+          border: 1px solid var(--divider-color);
+          background: var(--card-background-color, var(--paper-card-background-color));
+          color: var(--secondary-text-color);
+          width: 34px; height: 34px; border-radius: 50%;
+          cursor: pointer; padding: 0;
+          transition: all .15s ease;
+        }
+        .editbtn:hover { color: var(--primary-color); border-color: var(--primary-color); }
+        .editbtn.on {
+          background: var(--primary-color); color: var(--primary-text-color);
+          border-color: var(--primary-color);
+        }
+        .hint {
+          position: absolute; top: 16px; right: 58px; z-index: 3;
+          font-size: .75em; color: var(--secondary-text-color);
+          background: var(--secondary-background-color);
+          padding: 4px 10px; border-radius: 10px;
+        }
         .grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -168,6 +190,17 @@ class RensonRoomsGrid extends HTMLElement {
         }
         .tile:hover { border-color: var(--primary-color); }
         .tile:active { transform: scale(.99); }
+        .tile.dragging {
+          opacity: .45;
+          border-style: dashed;
+          border-color: var(--primary-color);
+        }
+        .tile.drop-target {
+          border-color: var(--primary-color);
+          border-width: 2px;
+        }
+        .tile[draggable="true"] { cursor: grab; }
+        .tile[draggable="true"]:active { cursor: grabbing; }
         .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .name { font-weight: 700; font-size: 1.05em; color: var(--primary-text-color); }
         .sub { font-size: .78em; color: var(--secondary-text-color); margin-top: 4px; }
@@ -209,22 +242,92 @@ class RensonRoomsGrid extends HTMLElement {
         .chip.on.light { background: rgba(255,183,77,.22); color: #f5a623; border-color: rgba(245,166,35,.45); }
         .chip.on.cover { background: rgba(25,118,210,.14); color: var(--primary-color); border-color: rgba(25,118,210,.4); }
       </style>
-      <div class="grid">
-        ${rooms.map((r) => this._roomHtml(r)).join("")}
+      <div class="wrap">
+        <button class="editbtn" title="Reorder rooms">
+          <ha-icon icon="${this._editMode ? "mdi:check" : "mdi:pencil"}"></ha-icon>
+        </button>
+        ${this._editMode ? `<span class="hint">Drag tiles to reorder, click the check to finish</span>` : ""}
+        <div class="grid">
+          ${rooms.map((r) => this._roomHtml(r)).join("")}
+        </div>
       </div>
     `;
     this.renderRoot.querySelectorAll(".tile").forEach((tile) => {
       tile.addEventListener("click", (e) => {
         if (e.target.closest(".chip")) return;
+        if (this._editMode) return;
         this._navigate(tile.dataset.path);
       });
     });
     this.renderRoot.querySelectorAll(".chip").forEach((chip) => {
       chip.addEventListener("click", (e) => {
         e.stopPropagation();
+        if (this._editMode) { e.preventDefault(); return; }
         this._toggle(chip.dataset.entity, chip.dataset.domain);
       });
     });
+    this.renderRoot.querySelector(".editbtn").addEventListener("click", () => {
+      this._editMode = !this._editMode;
+      this._render();
+    });
+    if (this._editMode) this._wireDragAndDrop();
+  }
+
+  _wireDragAndDrop() {
+    const tiles = [...this.renderRoot.querySelectorAll(".tile")];
+    let dragIndex = null;
+    tiles.forEach((tile, idx) => {
+      tile.draggable = true;
+      tile.addEventListener("dragstart", (e) => {
+        dragIndex = idx;
+        tile.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", String(idx));
+      });
+      tile.addEventListener("dragend", () => {
+        tile.classList.remove("dragging");
+        tiles.forEach((t) => t.classList.remove("drop-target"));
+      });
+      tile.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        tile.classList.add("drop-target");
+      });
+      tile.addEventListener("dragleave", () => {
+        tile.classList.remove("drop-target");
+      });
+      tile.addEventListener("drop", (e) => {
+        e.preventDefault();
+        tile.classList.remove("drop-target");
+        if (dragIndex === null || dragIndex === idx) return;
+        const rooms = this._config.rooms;
+        const [moved] = rooms.splice(dragIndex, 1);
+        rooms.splice(idx, 0, moved);
+        this._lastSig = null;
+        this._render();
+        this._persistOrder();
+      });
+    });
+  }
+
+  async _persistOrder() {
+    try {
+      const config = await this._hass.connection.sendMessagePromise({
+        type: "lovelace/config",
+      });
+      const view = config.views && config.views[0];
+      const card = view && view.cards && view.cards[0];
+      if (card && card.type === "custom:renson-rooms-grid") {
+        card.rooms = this._config.rooms;
+        await this._hass.connection.sendMessagePromise({
+          type: "lovelace/config/save",
+          config,
+        });
+      }
+    } catch (err) {
+      // order blijft lokaal bewaard tot een volgende save slaagt
+      console.error("renson-rooms-grid: persist failed", err);
+    }
   }
 }
 
