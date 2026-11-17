@@ -11,7 +11,7 @@
  *   outputs:  [light.keuken_inbouwspots, ...]            (optional; defaults to
  *              all OpenMotics lights/switches in the same area as the inputs)
  */
-import { t } from "./renson-i18n.js?v=11";
+import { t } from "./renson-i18n.js?v=12";
 
 class RensonInputLinkCard extends HTMLElement {
   static getStubConfig() {
@@ -61,7 +61,7 @@ class RensonInputLinkCard extends HTMLElement {
     return n || "#" + id;
   }
 
-  /* Decode a basic_actions string into a human description. */
+  /* Decode a basic_actions string into a human description (name first). */
   _describeBasic(ba) {
     if (!ba) return "";
     const t = String(ba).split(",").map(Number);
@@ -69,9 +69,9 @@ class RensonInputLinkCard extends HTMLElement {
     for (let i = 0; i + 1 < t.length; i += 2) {
       const a = t[i], n = t[i + 1];
       if (a === 2) {
-        parts.push(this._t("runs_automation", { name: this._gaName(n) }));
+        parts.push(this._t("ga_press", { name: this._gaName(n) }));
       } else if (a >= 207 && a <= 211) {
-        parts.push(this._t("longpress_runs",
+        parts.push(this._t("ga_longpress",
           { sec: a - 206, name: this._gaName(n) }));
       } else if (a === 103) {
         parts.push(this._t("ba_shutter_toggle",
@@ -383,8 +383,18 @@ class RensonInputLinkCard extends HTMLElement {
 
     let mode = "output";
     const gaIdAttr = st && st.attributes ? st.attributes.linked_group_action_id : undefined;
-    // Pre-select the currently linked automation (pure "2,N" links).
-    let selectedGA = gaIdAttr !== undefined ? gaIdAttr : null;
+    // Default selection: the automation this input currently triggers. For
+    // combo inputs (long-press + release) take the first one referenced.
+    let currentGAs = new Set();
+    if (extended && st && st.attributes && st.attributes.basic_actions) {
+      const t = String(st.attributes.basic_actions).split(",").map(Number);
+      for (let i = 0; i + 1 < t.length; i += 2) {
+        if (t[i] === 2 || (t[i] >= 207 && t[i] <= 211)) currentGAs.add(t[i + 1]);
+      }
+    }
+    let selectedGA = gaIdAttr !== undefined
+      ? gaIdAttr
+      : (currentGAs.size ? currentGAs.values().next().value : null);
     const roomRow = overlay.querySelector(".roomrow");
     const tabsHost = overlay.querySelector(".tabs");
     const setMode = (m) => {
@@ -412,15 +422,6 @@ class RensonInputLinkCard extends HTMLElement {
     tabsHost.querySelector(".tabauto").addEventListener("click", () => setMode("automation"));
 
     const gas = this._gas || [];
-    // Group action ids referenced by this button's current basic_actions
-    // ("2,N" run, "207..211,N" long-press run).
-    const currentGAs = new Set();
-    if (extended && st && st.attributes && st.attributes.basic_actions) {
-      const t = String(st.attributes.basic_actions).split(",").map(Number);
-      for (let i = 0; i + 1 < t.length; i += 2) {
-        if (t[i] === 2 || (t[i] >= 207 && t[i] <= 211)) currentGAs.add(t[i + 1]);
-      }
-    }
     const renderGAs = () => {
       const list = gas.filter((g) => g.actions);
       return `
@@ -432,6 +433,9 @@ class RensonInputLinkCard extends HTMLElement {
                    style="width:100%;box-sizing:border-box;margin-top:6px;padding:7px 9px;border:1px solid var(--divider-color,#ccc);border-radius:8px;font-size:13px;background:var(--card-background-color,#fff);color:inherit">
           </div>
         </div>`
+        + (currentGAs.size > 1
+          ? `<div class="warn">${this._t("multi_automation_warning")}</div>`
+          : "")
         + (list.map((g) => `
           <div class="opt ${selectedGA === g.id ? "sel" : ""}" data-ga="${g.id}">
             <div>
