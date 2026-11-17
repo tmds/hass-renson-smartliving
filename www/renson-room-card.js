@@ -117,13 +117,18 @@ class RensonRoomCard extends HTMLElement {
     const temp = climate ? climate.attributes.current_temperature : null;
     const target = climate ? climate.attributes.temperature : null;
     const lights = this._lightsOn();
-    // Badge op hvac_action: zonnetje bij heating, vriesicoontje bij cooling.
+    // Mode-icoon (zonnetje bij mode heat, vriesicoontje bij cool) naast de
+    // actie-badge (vlam/sneeuwvlok volgens hvac_action).
     const action = climate && climate.attributes ? climate.attributes.hvac_action : undefined;
     const heat = action === "heating" || action === "preheating"
       || action === "defrosting"
       || (action === undefined && climate && climate.state === "heat");
     const cool = action === "cooling" || action === "drying"
       || action === "fan";
+    const mode = climate ? climate.state : null;
+    const modeIcon = mode === "heat" ? "mdi:white-balance-sunny"
+      : mode === "cool" ? "mdi:snowflake" : null;
+    const modeClass = mode === "cool" ? "mode-cool" : "mode-heat";
     const sub = [];
     if (temp !== null && temp !== undefined) {
       sub.push(`${this._fmtTemp(target)}\u00B0 target`);
@@ -150,6 +155,13 @@ class RensonRoomCard extends HTMLElement {
         .name { font-weight: 700; font-size: 1.05em; color: var(--primary-text-color); }
         .chev { color: var(--secondary-text-color); font-size: 1.2em; }
         .temp { font-size: 1.7em; font-weight: 700; color: var(--primary-text-color); }
+        .mode-icon {
+          --mdc-icon-size: 16px;
+          vertical-align: middle;
+          margin: 8px 2px 0 0;
+        }
+        .mode-icon.mode-heat { color: #f5a623; }
+        .mode-icon.mode-cool { color: var(--primary-color); }
         .sub { font-size: .78em; color: var(--secondary-text-color); margin-top: 4px; }
         .badge {
           display: inline-flex; align-items: center; gap: 4px;
@@ -194,7 +206,7 @@ class RensonRoomCard extends HTMLElement {
           <div>
             <div class="name">${this._config.title}</div>
             <div class="sub">${sub.join(" &middot; ") || "&nbsp;"}</div>
-            ${heat ? `<span class="badge heat"><ha-icon icon="mdi:white-balance-sunny"></ha-icon>Heating</span>` : ""}
+            ${modeIcon ? `<ha-icon class="mode-icon ${modeClass}" icon="${modeIcon}"></ha-icon>` : ""}${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>Heating</span>` : ""}
             ${cool ? `<span class="badge cool"><ha-icon icon="mdi:snowflake"></ha-icon>Cooling</span>` : ""}
           </div>
           <div class="row">
