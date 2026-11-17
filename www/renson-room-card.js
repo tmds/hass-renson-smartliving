@@ -155,13 +155,17 @@ class RensonRoomCard extends HTMLElement {
         .name { font-weight: 700; font-size: 1.05em; color: var(--primary-text-color); }
         .chev { color: var(--secondary-text-color); font-size: 1.2em; }
         .temp { font-size: 1.7em; font-weight: 700; color: var(--primary-text-color); }
-        .mode-icon {
-          --mdc-icon-size: 16px;
-          vertical-align: middle;
-          margin: 8px 2px 0 0;
+        .mode-circle {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 22px; height: 22px; border-radius: 50%;
+          border: 1px solid var(--divider-color);
+          background: var(--secondary-background-color);
+          vertical-align: middle; margin: 8px 2px 0 0;
+          cursor: default;
         }
-        .mode-icon.mode-heat { color: #f5a623; }
-        .mode-icon.mode-cool { color: var(--primary-color); }
+        .mode-circle ha-icon { --mdc-icon-size: 14px; }
+        .mode-circle.mode-heat ha-icon { color: #f5a623; }
+        .mode-circle.mode-cool ha-icon { color: var(--primary-color); }
         .sub { font-size: .78em; color: var(--secondary-text-color); margin-top: 4px; }
         .badge {
           display: inline-flex; align-items: center; gap: 4px;
@@ -206,7 +210,7 @@ class RensonRoomCard extends HTMLElement {
           <div>
             <div class="name">${this._config.title}</div>
             <div class="sub">${sub.join(" &middot; ") || "&nbsp;"}</div>
-            ${modeIcon ? `<ha-icon class="mode-icon ${modeClass}" icon="${modeIcon}"></ha-icon>` : ""}${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>Heating</span>` : ""}
+            ${modeIcon ? `<span class="mode-circle ${modeClass}" title="${mode === "cool" ? "HVAC mode: cooling" : "HVAC mode: heating"}"><ha-icon icon="${modeIcon}"></ha-icon></span>` : ""}${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>Heating</span>` : ""}
             ${cool ? `<span class="badge cool"><ha-icon icon="mdi:snowflake"></ha-icon>Cooling</span>` : ""}
           </div>
           <div class="row">

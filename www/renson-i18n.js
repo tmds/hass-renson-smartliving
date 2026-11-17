@@ -11,6 +11,8 @@
 
 const STRINGS = {
   en: {
+    hvac_mode_heating: "HVAC mode: heating",
+    hvac_mode_cooling: "HVAC mode: cooling",
     heating: "Heating",
     cooling: "Cooling",
     reorder_rooms: "Reorder rooms",
@@ -43,6 +45,8 @@ const STRINGS = {
     week_copied_to: "Week copied to {entity}",
   },
   nl: {
+    hvac_mode_heating: "HVAC-modus: verwarming",
+    hvac_mode_cooling: "HVAC-modus: koeling",
     heating: "Verwarming",
     cooling: "Koeling",
     reorder_rooms: "Kamers herordenen",

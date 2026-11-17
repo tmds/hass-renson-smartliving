@@ -12,7 +12,7 @@
  *
  * Use in a panel view (type: panel) so the grid spans the full width.
  */
-import { t } from "./renson-i18n.js?v=2";
+import { t } from "./renson-i18n.js?v=3";
 
 class RensonRoomsGrid extends HTMLElement {
   static getStubConfig() {
@@ -168,7 +168,7 @@ class RensonRoomsGrid extends HTMLElement {
           </div>
           <span class="temp">${temp !== null && temp !== undefined ? `${this._fmtTemp(temp)}\u00B0` : ""}</span>
         </div>
-        ${modeIcon ? `<ha-icon class="mode-icon ${modeClass}" icon="${modeIcon}"></ha-icon>` : ""}${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>${this._t("heating")}</span>` : ""}
+        ${modeIcon ? `<span class="mode-circle ${modeClass}" title="${mode === "cool" ? this._t("hvac_mode_cooling") : this._t("hvac_mode_heating")}"><ha-icon icon="${modeIcon}"></ha-icon></span>` : ""}${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>${this._t("heating")}</span>` : ""}
         ${cool ? `<span class="badge cool"><ha-icon icon="mdi:snowflake"></ha-icon>${this._t("cooling")}</span>` : ""}
         ${chips.length ? `<div class="chips">${chips.join("")}</div>` : ""}
       </${tileTag}>
@@ -238,13 +238,17 @@ class RensonRoomsGrid extends HTMLElement {
         .name { font-weight: 700; font-size: 1.05em; color: var(--primary-text-color); }
         .sub { font-size: .78em; color: var(--secondary-text-color); margin-top: 4px; }
         .temp { font-size: 1.7em; font-weight: 700; color: var(--primary-text-color); white-space: nowrap; }
-        .mode-icon {
-          --mdc-icon-size: 16px;
-          vertical-align: middle;
-          margin: 8px 2px 0 0;
+        .mode-circle {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 22px; height: 22px; border-radius: 50%;
+          border: 1px solid var(--divider-color);
+          background: var(--secondary-background-color);
+          vertical-align: middle; margin: 8px 2px 0 0;
+          cursor: default;
         }
-        .mode-icon.mode-heat { color: #f5a623; }
-        .mode-icon.mode-cool { color: var(--primary-color); }
+        .mode-circle ha-icon { --mdc-icon-size: 14px; }
+        .mode-circle.mode-heat ha-icon { color: #f5a623; }
+        .mode-circle.mode-cool ha-icon { color: var(--primary-color); }
         .badge {
           display: inline-flex; align-items: center; gap: 4px;
           padding: 3px 10px; border-radius: 10px;
