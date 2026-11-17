@@ -12,7 +12,7 @@
  *
  * Use in a panel view (type: panel) so the grid spans the full width.
  */
-import { t } from "./renson-i18n.js?v=3";
+import { t } from "./renson-i18n.js?v=4";
 
 class RensonRoomsGrid extends HTMLElement {
   static getStubConfig() {
@@ -168,8 +168,10 @@ class RensonRoomsGrid extends HTMLElement {
           </div>
           <span class="temp">${temp !== null && temp !== undefined ? `${this._fmtTemp(temp)}\u00B0` : ""}</span>
         </div>
+        <div class="modes">
         ${modeIcon ? `<span class="mode-circle ${modeClass}" title="${mode === "cool" ? this._t("hvac_mode_cooling") : this._t("hvac_mode_heating")}"><ha-icon icon="${modeIcon}"></ha-icon></span>` : ""}${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>${this._t("heating")}</span>` : ""}
         ${cool ? `<span class="badge cool"><ha-icon icon="mdi:snowflake"></ha-icon>${this._t("cooling")}</span>` : ""}
+        </div>
         ${chips.length ? `<div class="chips">${chips.join("")}</div>` : ""}
       </${tileTag}>
     `;
@@ -187,7 +189,7 @@ class RensonRoomsGrid extends HTMLElement {
           border: 1px solid var(--divider-color);
           background: var(--card-background-color, var(--paper-card-background-color));
           color: var(--secondary-text-color);
-          width: 34px; height: 34px; border-radius: 50%;
+          width: 32px; height: 32px; border-radius: 50%; box-sizing: border-box;
           cursor: pointer; padding: 0;
           transition: all .15s ease;
         }
@@ -238,15 +240,20 @@ class RensonRoomsGrid extends HTMLElement {
         .name { font-weight: 700; font-size: 1.05em; color: var(--primary-text-color); }
         .sub { font-size: .78em; color: var(--secondary-text-color); margin-top: 4px; }
         .temp { font-size: 1.7em; font-weight: 700; color: var(--primary-text-color); white-space: nowrap; }
+        .modes {
+          display: flex; align-items: center; gap: 6px;
+          margin-top: 8px; flex-wrap: wrap;
+        }
+        .modes:empty { display: none; }
+        .modes .badge { margin-top: 0; }
         .mode-circle {
           display: inline-flex; align-items: center; justify-content: center;
-          width: 22px; height: 22px; border-radius: 50%;
+          width: 32px; height: 32px; border-radius: 50%; box-sizing: border-box;
           border: 1px solid var(--divider-color);
           background: var(--secondary-background-color);
-          vertical-align: middle; margin: 8px 2px 0 0;
-          cursor: default;
+          cursor: default; flex: none;
         }
-        .mode-circle ha-icon { --mdc-icon-size: 14px; }
+        .mode-circle ha-icon { --mdc-icon-size: 18px; }
         .mode-circle.mode-heat ha-icon { color: #f5a623; }
         .mode-circle.mode-cool ha-icon { color: var(--primary-color); }
         .badge {
@@ -263,7 +270,7 @@ class RensonRoomsGrid extends HTMLElement {
         .chip {
           position: relative;
           display: flex; align-items: center; justify-content: center;
-          width: 34px; height: 34px; border-radius: 50%;
+          width: 32px; height: 32px; border-radius: 50%; box-sizing: border-box;
           border: 1px solid var(--divider-color);
           background: var(--secondary-background-color);
           color: var(--secondary-text-color);

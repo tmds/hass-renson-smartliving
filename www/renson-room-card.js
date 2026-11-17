@@ -155,15 +155,20 @@ class RensonRoomCard extends HTMLElement {
         .name { font-weight: 700; font-size: 1.05em; color: var(--primary-text-color); }
         .chev { color: var(--secondary-text-color); font-size: 1.2em; }
         .temp { font-size: 1.7em; font-weight: 700; color: var(--primary-text-color); }
+        .modes {
+          display: flex; align-items: center; gap: 6px;
+          margin-top: 8px; flex-wrap: wrap;
+        }
+        .modes:empty { display: none; }
+        .modes .badge { margin-top: 0; }
         .mode-circle {
           display: inline-flex; align-items: center; justify-content: center;
-          width: 22px; height: 22px; border-radius: 50%;
+          width: 32px; height: 32px; border-radius: 50%; box-sizing: border-box;
           border: 1px solid var(--divider-color);
           background: var(--secondary-background-color);
-          vertical-align: middle; margin: 8px 2px 0 0;
-          cursor: default;
+          cursor: default; flex: none;
         }
-        .mode-circle ha-icon { --mdc-icon-size: 14px; }
+        .mode-circle ha-icon { --mdc-icon-size: 18px; }
         .mode-circle.mode-heat ha-icon { color: #f5a623; }
         .mode-circle.mode-cool ha-icon { color: var(--primary-color); }
         .sub { font-size: .78em; color: var(--secondary-text-color); margin-top: 4px; }
@@ -181,7 +186,7 @@ class RensonRoomCard extends HTMLElement {
         .chip {
           position: relative;
           display: flex; align-items: center; justify-content: center;
-          width: 34px; height: 34px; border-radius: 50%;
+          width: 32px; height: 32px; border-radius: 50%; box-sizing: border-box;
           border: 1px solid var(--divider-color);
           background: var(--secondary-background-color);
           color: var(--secondary-text-color);
@@ -210,8 +215,10 @@ class RensonRoomCard extends HTMLElement {
           <div>
             <div class="name">${this._config.title}</div>
             <div class="sub">${sub.join(" &middot; ") || "&nbsp;"}</div>
+            <div class="modes">
             ${modeIcon ? `<span class="mode-circle ${modeClass}" title="${mode === "cool" ? "HVAC mode: cooling" : "HVAC mode: heating"}"><ha-icon icon="${modeIcon}"></ha-icon></span>` : ""}${heat ? `<span class="badge heat"><ha-icon icon="mdi:fire"></ha-icon>Heating</span>` : ""}
             ${cool ? `<span class="badge cool"><ha-icon icon="mdi:snowflake"></ha-icon>Cooling</span>` : ""}
+            </div>
           </div>
           <div class="row">
             <span class="temp">${temp !== null && temp !== undefined ? `${this._fmtTemp(temp)}\u00B0` : ""}</span>
