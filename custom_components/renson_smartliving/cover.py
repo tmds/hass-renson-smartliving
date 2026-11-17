@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.cover import (
+    ATTR_POSITION,
     CoverDeviceClass,
     CoverEntity,
     CoverEntityFeature,
@@ -68,6 +69,7 @@ class OpenMoticsCover(OpenMoticsEntity, CoverEntity):
         CoverEntityFeature.OPEN
         | CoverEntityFeature.CLOSE
         | CoverEntityFeature.STOP
+        | CoverEntityFeature.SET_POSITION
     )
 
     def __init__(
@@ -88,7 +90,7 @@ class OpenMoticsCover(OpenMoticsEntity, CoverEntity):
         if state is None or state["position"] is None:
             return None
         # OM: 0=open, 99=closed (100 steps). HA: 100=open, 0=closed (101 values).
-        return round((99 - state["position"]) * 100 / 99)
+        return int(round((99 - state["position"]) * 100 / 99))
 
     @property
     def is_opening(self) -> bool:
@@ -115,3 +117,14 @@ class OpenMoticsCover(OpenMoticsEntity, CoverEntity):
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         await self.coordinator.client.shutter_stop(self._shutter_id)
+
+    async def async_set_cover_position(self, **kwargs: Any) -> None:
+        """Set the shutter to an absolute position.
+
+        HA: 100 = fully open, 0 = fully closed.
+        OM: 0 = fully open, 99 = fully closed.
+        Inverse of current_cover_position: om = round(99 - ha * 99 / 100).
+        """
+        position = kwargs[ATTR_POSITION]
+        om_position = round(99 - max(0, min(100, position)) * 99 / 100)
+        await self.coordinator.client.shutter_goto(self._shutter_id, om_position)

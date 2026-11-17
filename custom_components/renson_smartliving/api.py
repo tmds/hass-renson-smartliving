@@ -341,6 +341,16 @@ class OpenMoticsClient:
     async def shutter_stop(self, shutter_id: int) -> dict[str, Any]:
         return await self.get("/do_shutter_stop", {"id": shutter_id})
 
+    async def shutter_goto(self, shutter_id: int, position: int) -> dict[str, Any]:
+        """Move a shutter to an absolute position.
+
+        OM position: 0 = fully open, 99 = fully closed (100 steps).
+        Not all gateways/firmwares support this; fw 3.9.9 does.
+        """
+        return await self.get(
+            "/do_shutter_goto", {"id": shutter_id, "position": int(position)}
+        )
+
     async def do_group_action(self, group_action_id: int) -> dict[str, Any]:
         return await self.post(
             "/do_group_action", {"group_action_id": group_action_id}, idempotent=False
