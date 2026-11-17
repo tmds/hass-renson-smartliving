@@ -18,7 +18,11 @@ class RensonRoomCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    this._render();
+    const sig = this._signature();
+    if (sig !== this._lastSig) {
+      this._lastSig = sig;
+      this._render();
+    }
   }
 
   setConfig(config) {
@@ -47,6 +51,22 @@ class RensonRoomCard extends HTMLElement {
     return { on, total: lights.length };
   }
 
+  _signature() {
+    if (!this._hass) return "";
+    const parts = [];
+    const cl = this._config.climate
+      ? this._hass.states[this._config.climate] : null;
+    if (cl) {
+      parts.push(cl.state, cl.attributes.current_temperature,
+        cl.attributes.temperature);
+    }
+    for (const eid of [...(this._config.lights || []), ...(this._config.covers || [])]) {
+      const s = this._hass.states[eid];
+      parts.push(eid, s ? s.state : "?");
+    }
+    return parts.join("|");
+  }
+
   _toggle(entity_id, domain) {
     this._hass.callService(domain, "toggle", { entity_id });
   }
@@ -59,18 +79,20 @@ class RensonRoomCard extends HTMLElement {
     for (const eid of lights) {
       const s = this._hass.states[eid];
       const on = s && s.state === "on";
+      const name = (s && s.attributes.friendly_name) || eid;
       chips.push(
         `<button class="chip light ${on ? "on" : ""}" data-entity="${eid}" data-domain="light" ` +
-        `title="${(s && s.attributes.friendly_name) || eid}">` +
+        `data-name="${name}">` +
         `<ha-icon icon="mdi:lightbulb"></ha-icon></button>`
       );
     }
     for (const eid of covers) {
       const s = this._hass.states[eid];
       const open = s && s.state === "open";
+      const name = (s && s.attributes.friendly_name) || eid;
       chips.push(
         `<button class="chip cover ${open ? "on" : ""}" data-entity="${eid}" data-domain="cover" ` +
-        `title="${(s && s.attributes.friendly_name) || eid}">` +
+        `data-name="${name}">` +
         `<ha-icon icon="mdi:window-shutter"></ha-icon></button>`
       );
     }
@@ -124,6 +146,7 @@ class RensonRoomCard extends HTMLElement {
         .badge.heat { background: rgba(255,112,67,.18); color: #e8602c; }
         .chips { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
         .chip {
+          position: relative;
           display: flex; align-items: center; justify-content: center;
           width: 34px; height: 34px; border-radius: 50%;
           border: 1px solid var(--divider-color);
@@ -133,6 +156,19 @@ class RensonRoomCard extends HTMLElement {
           transition: all .15s ease;
         }
         .chip:hover { border-color: var(--primary-color); }
+        .chip::after {
+          content: attr(data-name);
+          position: absolute; bottom: calc(100% + 6px); left: 50%;
+          transform: translateX(-50%);
+          background: var(--primary-text-color, #222);
+          color: var(--card-background-color, #fff);
+          font-size: .72em; font-weight: 500;
+          padding: 4px 8px; border-radius: 6px;
+          white-space: nowrap; pointer-events: none;
+          opacity: 0; transition: opacity .12s ease;
+          z-index: 5;
+        }
+        .chip:hover::after { opacity: 1; }
         .chip.on.light { background: rgba(255,183,77,.22); color: #f5a623; border-color: rgba(245,166,35,.45); }
         .chip.on.cover { background: rgba(25,118,210,.14); color: var(--primary-color); border-color: rgba(25,118,210,.4); }
       </style>
