@@ -101,3 +101,34 @@ set_input_link:
       default: false
       selector:
         boolean:
+
+set_shutter_timings:
+  name: Set shutter timings
+  description: >-
+    Set the travel timers of an OpenMotics shutter (screen). timer_up is
+    the number of seconds the screen needs to fully open, timer_down to
+    fully close. These timers drive the gateway's own position estimate
+    and the position slider.
+  target:
+    entity:
+      integration: renson_smartliving
+      domain: cover
+  fields:
+    timer_up:
+      name: Timer up
+      description: Seconds the shutter needs to travel fully open (0-255).
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1
+    timer_down:
+      name: Timer down
+      description: Seconds the shutter needs to travel fully closed (0-255).
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1

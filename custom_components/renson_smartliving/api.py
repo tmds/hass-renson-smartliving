@@ -280,6 +280,19 @@ class OpenMoticsClient:
     async def get_shutter_status(self) -> dict[str, Any]:
         return await self.get("/get_shutter_status")
 
+    async def set_shutter_configuration(self, config: dict[str, Any]) -> None:
+        """Write a single shutter configuration (legacy endpoint, form params).
+
+        The gateway serializer resets missing fields to their defaults, so
+        callers MUST pass the complete current configuration merged with
+        the fields they want to change (see the input link pitfall).
+        """
+        await self.post(
+            "/set_shutter_configuration",
+            {"config": json.dumps(config)},
+            idempotent=False,
+        )
+
     async def get_input_configurations(self) -> list[dict[str, Any]]:
         data = await self.get("/get_input_configurations")
         return cast(list[dict[str, Any]], data.get("config", []))
@@ -340,16 +353,6 @@ class OpenMoticsClient:
 
     async def shutter_stop(self, shutter_id: int) -> dict[str, Any]:
         return await self.get("/do_shutter_stop", {"id": shutter_id})
-
-    async def shutter_goto(self, shutter_id: int, position: int) -> dict[str, Any]:
-        """Move a shutter to an absolute position.
-
-        OM position: 0 = fully open, 99 = fully closed (100 steps).
-        Not all gateways/firmwares support this; fw 3.9.9 does.
-        """
-        return await self.get(
-            "/do_shutter_goto", {"id": shutter_id, "position": int(position)}
-        )
 
     async def do_group_action(self, group_action_id: int) -> dict[str, Any]:
         return await self.post(

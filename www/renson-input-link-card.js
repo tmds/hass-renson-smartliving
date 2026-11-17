@@ -209,6 +209,7 @@ class RensonInputLinkCard extends HTMLElement {
           cursor: pointer; font-weight: 600; font-family: inherit; font-size: .9em;
         }
         .save { background: var(--primary-color); color: var(--text-primary-color, #fff); }
+        .save:disabled { opacity: .45; cursor: not-allowed; }
         .cancel { background: var(--secondary-background-color); color: var(--primary-text-color); }
         .close {
           position: absolute; top: 10px; right: 12px;
@@ -286,7 +287,7 @@ class RensonInputLinkCard extends HTMLElement {
         <div class="opts">${renderOpts()}</div>
         <div class="actions">
           <button class="cancel">${t(this._lang, "cancel")}</button>
-          <button class="save">${t(this._lang, "save_link")}</button>
+          <button class="save" ${extended && !selected ? "disabled" : ""}>${t(this._lang, "save_link")}</button>
         </div>
       </div>`;
 
@@ -296,6 +297,12 @@ class RensonInputLinkCard extends HTMLElement {
       const match = outputs.find((eid) => this._outputIdOf(eid) === selectedId);
       if (match) selected = match;
     }
+    const saveBtn = overlay.querySelector(".save");
+    const syncSave = () => {
+      // Unlinking an extended input would erase its gateway actions.
+      saveBtn.disabled = extended && !selected;
+    };
+    syncSave();
     const optsHost = overlay.querySelector(".opts");
     const wireOpts = () => {
       optsHost.querySelectorAll(".opt").forEach((el) => {
@@ -303,6 +310,7 @@ class RensonInputLinkCard extends HTMLElement {
           optsHost.querySelectorAll(".opt").forEach((o) => o.classList.remove("sel"));
           el.classList.add("sel");
           selected = el.dataset.entity;
+          syncSave();
         });
       });
     };
@@ -312,6 +320,7 @@ class RensonInputLinkCard extends HTMLElement {
       roomFilter = e.target.value;
       optsHost.innerHTML = renderOpts();
       wireOpts();
+      syncSave();
     });
     const close = () => {
       overlay.style.display = "none";

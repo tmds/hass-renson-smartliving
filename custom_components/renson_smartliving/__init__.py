@@ -66,6 +66,14 @@ SERVICE_SET_INPUT_LINK_SCHEMA = vol.Schema(
     }
 )
 
+SERVICE_SET_SHUTTER_TIMINGS_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional("timer_up"): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
+        vol.Optional("timer_down"): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
+    }
+)
+
 
 def _resolve_om_entity(
     hass: HomeAssistant, entity_id: str
@@ -141,7 +149,7 @@ async def _async_set_input_link(call: ServiceCall) -> None:
         ):
             raise ValueError(
                 f"{entity_id} has extended gateway actions (timers, group "
-                "actions, ...). Linking it to an output erases those actions "
+                "actions, ...). Linking OR unlinking it erases those actions "
                 "on the gateway. Repeat with force=true to overwrite them."
             )
         config: dict[str, Any] = {"id": input_id, "action": action}
@@ -154,6 +162,44 @@ async def _async_set_input_link(call: ServiceCall) -> None:
             entity_id,
             input_id,
             action,
+        )
+
+
+async def _async_set_shutter_timings(call: ServiceCall) -> None:
+    """Update the travel timers of an OpenMotics shutter (cover)."""
+    for entity_id in call.data[ATTR_ENTITY_ID]:
+        coordinator, entity = _resolve_om_entity(call.hass, entity_id)
+        if entity.entity_id.split(".")[0] != "cover":
+            raise ValueError(f"{entity_id} is not an OpenMotics shutter (cover)")
+        shutter_id = cast("int", entity._om_id)  # noqa: SLF001
+        current = next(
+            (s for s in coordinator.shutters if s.get("id") == shutter_id),
+            None,
+        )
+        if current is None:
+            raise ValueError(f"No shutter configuration found for {entity_id}")
+        # the gateway serializer resets missing fields to defaults, so the
+        # COMPLETE current config must be sent, merged with the new timers
+        config = dict(current)
+        if "timer_up" in call.data:
+            config["timer_up"] = call.data["timer_up"]
+        if "timer_down" in call.data:
+            config["timer_down"] = call.data["timer_down"]
+        await coordinator.client.set_shutter_configuration(config)
+        current.update(
+            {
+                k: config[k]
+                for k in ("timer_up", "timer_down")
+                if k in config
+            }
+        )
+        coordinator.async_set_updated_data(coordinator.data)
+        _LOGGER.info(
+            "Shutter timings updated for %s (shutter %d): up=%s down=%s",
+            entity_id,
+            shutter_id,
+            config.get("timer_up"),
+            config.get("timer_down"),
         )
 
 
@@ -294,6 +340,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         "set_input_link",
         _async_set_input_link,
         schema=SERVICE_SET_INPUT_LINK_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "set_shutter_timings",
+        _async_set_shutter_timings,
+        schema=SERVICE_SET_SHUTTER_TIMINGS_SCHEMA,
     )
     return True
 

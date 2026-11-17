@@ -285,6 +285,28 @@ async def test_set_input_link_requires_force_on_extended(
     )
 
 
+async def test_set_input_link_unlink_extended_requires_force(
+    hass: HomeAssistant, coordinator
+) -> None:
+    """Unlinking an extended input would erase its actions: refuse."""
+    from custom_components.renson_smartliving import _async_set_input_link
+
+    coordinator.inputs = [
+        {"id": 5, "name": "btn", "action": 240, "basic_actions": "103,22"}
+    ]
+    input_entity = _event_entity(coordinator, 5)
+    input_entity.hass = hass
+    input_entity.entity_id = "event.test_input"
+    registry: dict = hass.data.setdefault(DOMAIN, {}).setdefault("om_entities", {})
+    registry["event.test_input"] = input_entity
+
+    call = ServiceCall(
+        hass, DOMAIN, "set_input_link", {ATTR_ENTITY_ID: ["event.test_input"]}
+    )
+    with pytest.raises(ValueError, match="force=true"):
+        await _async_set_input_link(call)
+
+
 async def test_set_input_link_rejects_non_event(
     hass: HomeAssistant, coordinator
 ) -> None:

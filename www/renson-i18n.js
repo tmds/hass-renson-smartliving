@@ -13,6 +13,11 @@ const STRINGS = {
   en: {
     hvac_mode_heating: "HVAC mode: heating",
     hvac_mode_cooling: "HVAC mode: cooling",
+    screen_timings: "Configure screen timings",
+    timer_up: "Timer up (seconds to open)",
+    timer_down: "Timer down (seconds to close)",
+    save: "Save",
+    timings_saved: "Timings saved",
     heating: "Heating",
     cooling: "Cooling",
     reorder_rooms: "Reorder rooms",
@@ -58,6 +63,11 @@ const STRINGS = {
   nl: {
     hvac_mode_heating: "HVAC-modus: verwarming",
     hvac_mode_cooling: "HVAC-modus: koeling",
+    screen_timings: "Screentimers instellen",
+    timer_up: "Timer open (seconden tot open)",
+    timer_down: "Timer dicht (seconden tot dicht)",
+    save: "Opslaan",
+    timings_saved: "Timers opgeslagen",
     heating: "Verwarming",
     cooling: "Koeling",
     reorder_rooms: "Kamers herordenen",
