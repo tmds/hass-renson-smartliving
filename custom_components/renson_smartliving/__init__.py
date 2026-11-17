@@ -7,7 +7,7 @@ from typing import Any, cast
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
@@ -16,6 +16,7 @@ from .api import OpenMoticsClient
 from .const import CONF_HOST, DAY_KEYS, DOMAIN, PLATFORMS
 from .coordinator import GatewayInfo, OpenMoticsCoordinator
 from .event import _has_extended_actions
+from .group_actions import parse_actions, validate_actions
 from .sync import SyncLoop
 
 _LOGGER = logging.getLogger(__name__)
@@ -74,6 +75,21 @@ SERVICE_SET_SHUTTER_TIMINGS_SCHEMA = vol.Schema(
     }
 )
 
+SERVICE_SAVE_GROUP_ACTION_SCHEMA = vol.Schema(
+    {
+        vol.Required("id"): vol.Coerce(int),
+        vol.Optional("name"): vol.All(str, vol.Length(max=16)),
+        vol.Optional("actions"): str,
+        vol.Optional("show_in_app"): bool,
+    }
+)
+
+SERVICE_RUN_GROUP_ACTION_SCHEMA = vol.Schema(
+    {
+        vol.Required("id"): vol.Coerce(int),
+    }
+)
+
 
 def _resolve_om_entity(
     hass: HomeAssistant, entity_id: str
@@ -86,6 +102,18 @@ def _resolve_om_entity(
     if entity is None:
         raise ValueError(f"Unknown OpenMotics entity: {entity_id}")
     return entity.coordinator, entity
+
+
+def _resolve_any_coordinator(
+    hass: HomeAssistant,
+) -> OpenMoticsCoordinator:
+    """Resolve the coordinator of any loaded OpenMotics config entry."""
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        runtime = getattr(entry, "runtime_data", None)
+        coordinator = getattr(runtime, "coordinator", None)
+        if coordinator is not None:
+            return coordinator
+    raise ValueError("No loaded OpenMotics config entry found")
 
 
 def _resolve_output_id(
@@ -336,6 +364,46 @@ async def _async_set_config(call: ServiceCall) -> None:
         )
 
 
+async def _async_get_group_actions(call: ServiceCall) -> dict[str, Any]:
+    """Read all gateway group actions plus device name maps for the editor."""
+    coordinator = _resolve_any_coordinator(call.hass)
+    actions = await coordinator.client.get_group_action_configurations()
+    return {
+        "actions": actions,
+        "outputs": coordinator.outputs,
+        "shutters": coordinator.shutters,
+        "inputs": coordinator.inputs,
+    }
+
+
+async def _async_save_group_action(call: ServiceCall) -> None:
+    """Write a single gateway group action (automation)."""
+    coordinator = _resolve_any_coordinator(call.hass)
+    config: dict[str, Any] = {"id": call.data["id"]}
+    if "name" in call.data:
+        config["name"] = call.data["name"]
+    if "show_in_app" in call.data:
+        config["show_in_app"] = call.data["show_in_app"]
+    if "actions" in call.data:
+        values = parse_actions(call.data["actions"])
+        validate_actions(values)
+        config["actions"] = call.data["actions"]
+    await coordinator.client.set_group_action_configuration(config)
+    _LOGGER.info(
+        "Group action %d saved: name=%r actions=%r",
+        config["id"],
+        config.get("name"),
+        config.get("actions"),
+    )
+
+
+async def _async_run_group_action(call: ServiceCall) -> None:
+    """Trigger a gateway group action by id."""
+    coordinator = _resolve_any_coordinator(call.hass)
+    await coordinator.client.do_group_action(call.data["id"])
+    _LOGGER.info("Group action %d triggered", call.data["id"])
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the OpenMotics services."""
     hass.services.async_register(
@@ -361,6 +429,25 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         "set_shutter_timings",
         _async_set_shutter_timings,
         schema=SERVICE_SET_SHUTTER_TIMINGS_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "get_group_actions",
+        _async_get_group_actions,
+        schema=vol.Schema({}),
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "save_group_action",
+        _async_save_group_action,
+        schema=SERVICE_SAVE_GROUP_ACTION_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "run_group_action",
+        _async_run_group_action,
+        schema=SERVICE_RUN_GROUP_ACTION_SCHEMA,
     )
     return True
 

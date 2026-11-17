@@ -11,7 +11,7 @@
  *   outputs:  [light.keuken_inbouwspots, ...]            (optional; defaults to
  *              all OpenMotics lights/switches in the same area as the inputs)
  */
-import { t } from "./renson-i18n.js?v=8";
+import { t } from "./renson-i18n.js?v=9";
 
 class RensonInputLinkCard extends HTMLElement {
   static getStubConfig() {
@@ -122,9 +122,13 @@ class RensonInputLinkCard extends HTMLElement {
     const lang = this._lang || "en";
     const rows = this._config.entities.map((eid) => {
       const linked = this._linked(eid);
+      const st = this._hass && this._hass.states[eid];
+      const extended = !!(st && st.attributes && st.attributes.has_extended_actions);
       const linkText = linked
         ? this._t("linked_to", { name: linked.name || ("output " + linked.id) })
-        : this._t("not_linked");
+        : extended
+          ? this._t("gateway_automation")
+          : this._t("not_linked");
       return `
         <div class="row" data-entity="${eid}">
           <div class="info">

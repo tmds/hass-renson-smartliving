@@ -132,3 +132,62 @@ set_shutter_timings:
           min: 0
           max: 255
           step: 1
+
+get_group_actions:
+  name: Get group actions
+  description: >-
+    Read all gateway automations (group actions) plus the output,
+    shutter and input name maps. Used by the automation editor card.
+  fields: []
+
+save_group_action:
+  name: Save group action
+  description: >-
+    Create or update a gateway automation (group action). The actions
+    field is the classic gateway bytecode as comma-separated
+    (action_type, action_number) pairs. The list is validated before
+    writing: unsupported opcodes are refused because the gateway
+    silently drops them.
+  fields:
+    id:
+      name: Id
+      description: Group action id (0-31).
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1
+    name:
+      name: Name
+      description: Name shown in the OpenMotics app (max 16 characters).
+      required: false
+      selector:
+        text:
+    actions:
+      name: Actions
+      description: Comma-separated bytecode pairs, e.g. "161,21,240,255".
+      required: false
+      selector:
+        text:
+    show_in_app:
+      name: Show in app
+      description: Show this automation in the OpenMotics app.
+      required: false
+      default: true
+      selector:
+        boolean:
+
+run_group_action:
+  name: Run group action
+  description: Trigger a gateway automation (group action) by id.
+  fields:
+    id:
+      name: Id
+      description: Group action id.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1

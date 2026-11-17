@@ -329,6 +329,18 @@ class OpenMoticsClient:
         data = await self.get("/get_group_action_configurations")
         return cast(list[dict[str, Any]], data.get("config", []))
 
+    async def set_group_action_configuration(self, config: dict[str, Any]) -> None:
+        """Write a single group action (gateway automation) configuration.
+
+        Legacy endpoint with form params. The serializer only writes the
+        fields present in ``config`` (id, name, actions, show_in_app).
+        """
+        await self.post(
+            "/set_group_action_configuration",
+            {"config": json.dumps(config)},
+            idempotent=False,
+        )
+
     # -- Commands --
 
     async def set_output(
