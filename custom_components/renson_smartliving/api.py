@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import ssl
 from typing import Any
@@ -31,6 +32,8 @@ WS_SUBSCRIPTION_TYPES = [
     "INPUT_CHANGE",
     "SENSOR_CHANGE",
     "SHUTTER_CHANGE",
+    "THERMOSTAT_CHANGE",
+    "THERMOSTAT_GROUP_CHANGE",
 ]
 
 
@@ -131,18 +134,19 @@ class OpenMoticsClient:
         params: dict[str, Any] | None = None,
         *,
         retry: bool = True,
-    ) -> dict[str, Any]:
+        json_body: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | list[Any]:
         """Make an authenticated request with retry on transient failures."""
         if self._token is None:
             await self.login()
 
         if not retry:
-            return await self._do_request(method, path, params)
+            return await self._do_request(method, path, params, json_body=json_body)
 
         last_exc: Exception | None = None
         for attempt in range(1 + self._MAX_RETRIES):
             try:
-                return await self._do_request(method, path, params)
+                return await self._do_request(method, path, params, json_body=json_body)
             except self._TRANSIENT_EXCEPTIONS as exc:
                 last_exc = exc
                 if attempt < self._MAX_RETRIES:
@@ -171,18 +175,20 @@ class OpenMoticsClient:
         params: dict[str, Any] | None = None,
         *,
         timeout: aiohttp.ClientTimeout | None = None,
-    ) -> dict[str, Any]:
+        json_body: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | list[Any]:
         """Single attempt: send request, handle 401 re-auth."""
         session = self._get_session()
         url = f"{self._base_url}{path}"
         headers = {"Authorization": f"Bearer {self._token}"}
-        _HTTP_LOGGER.debug("%s %s %s", method, path, params or "")
+        _HTTP_LOGGER.debug("%s %s %s", method, path, params or json_body or "")
 
         async with session.request(
             method,
             url,
             params=params,
             headers=headers,
+            json=json_body,
             ssl=self._ssl,
             timeout=timeout,
         ) as resp:
@@ -191,21 +197,36 @@ class OpenMoticsClient:
                 await self.login()
                 headers = {"Authorization": f"Bearer {self._token}"}
                 async with session.request(
-                    method, url, params=params, headers=headers, ssl=self._ssl
+                    method,
+                    url,
+                    params=params,
+                    headers=headers,
+                    json=json_body,
+                    ssl=self._ssl,
                 ) as retry_resp:
                     return await self._read_response(path, retry_resp)
             return await self._read_response(path, resp)
 
     @staticmethod
-    async def _read_response(path: str, resp: aiohttp.ClientResponse) -> dict[str, Any]:
+    async def _read_response(
+        path: str, resp: aiohttp.ClientResponse
+    ) -> dict[str, Any] | list[Any]:
         """Read, log, and validate a gateway response."""
         if resp.status >= 400:
             raise OpenMoticsError(f"HTTP {resp.status}", status=resp.status)
         if resp.status == 204:
             _HTTP_LOGGER.debug("%s -> 204 No Content", path)
             return {}
-        data = await resp.json()
+        body = await resp.text()
+        if not body:
+            # V1 API PUT calls return 200 with an empty body.
+            _HTTP_LOGGER.debug("%s -> 200 empty body", path)
+            return {}
+        data: dict[str, Any] | list[Any] = json.loads(body)
         _HTTP_LOGGER.debug("%s -> %s", path, data)
+        if isinstance(data, list):
+            # V1 API list responses are raw JSON arrays.
+            return data
         if not data.get("success", True):
             raise OpenMoticsError(data.get("msg", "Unknown error"))
         return data
@@ -213,12 +234,23 @@ class OpenMoticsClient:
     async def get(
         self, path: str, params: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        return await self._request("GET", path, params)
+        result = await self._request("GET", path, params)
+        assert isinstance(result, dict)
+        return result
 
     async def post(
         self, path: str, params: dict[str, Any] | None = None, *, idempotent: bool
     ) -> dict[str, Any]:
-        return await self._request("POST", path, params, retry=idempotent)
+        result = await self._request("POST", path, params, retry=idempotent)
+        assert isinstance(result, dict)
+        return result
+
+    async def put(
+        self, path: str, json_body: dict[str, Any], *, retry: bool = True
+    ) -> dict[str, Any]:
+        result = await self._request("PUT", path, json_body=json_body, retry=retry)
+        assert isinstance(result, dict)
+        return result
 
     # -- Sync --
 
@@ -280,6 +312,32 @@ class OpenMoticsClient:
     async def do_group_action(self, group_action_id: int) -> dict[str, Any]:
         return await self.post(
             "/do_group_action", {"group_action_id": group_action_id}, idempotent=False
+        )
+
+    # -- Thermostats (V1 API) --
+
+    async def get_thermostat_control(self) -> list[dict[str, Any]]:
+        """Fetch all thermostats with their status from the V1 API.
+
+        Returns a raw list; each item has id, name, room and a
+        status dict with current_setpoint, current_temperature,
+        active_preset, state, mode, steering_power and
+        preset_expiration.
+        """
+        data = await self._request("GET", "/api/thermostat/control")
+        return data if isinstance(data, list) else []
+
+    async def set_thermostat_control(
+        self, thermostat_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Update a thermostat via the V1 API.
+
+        Payload fields (all optional): setpoint, active_preset
+        (auto|manual|away|party), state (on|off), preset_expiration
+        (ISO timestamp or null for a permanent override).
+        """
+        return await self.put(
+            f"/api/thermostat/control/{thermostat_id}", payload
         )
 
     # -- WebSocket --

@@ -13,11 +13,16 @@ from custom_components.renson_smartliving.api import (
 )
 
 
-def _mock_response(status: int = 200, json_data: dict | None = None):
+def _mock_response(status: int = 200, json_data: dict | list | None = None, text: str | None = None):
     """Create a mock aiohttp response usable as an async context manager."""
+    import json as jsonlib
+
     resp = AsyncMock()
     resp.status = status
-    resp.json = AsyncMock(return_value=json_data or {})
+    if text is None:
+        text = "" if json_data is None else jsonlib.dumps(json_data)
+    resp.text = AsyncMock(return_value=text)
+    resp.json = AsyncMock(return_value=json_data if json_data is not None else {})
     ctx = AsyncMock()
     ctx.__aenter__ = AsyncMock(return_value=resp)
     ctx.__aexit__ = AsyncMock(return_value=False)
@@ -118,7 +123,9 @@ async def test_read_response_success_false() -> None:
     """Response with success=false raises OpenMoticsError."""
     resp = AsyncMock()
     resp.status = 200
-    resp.json = AsyncMock(return_value={"success": False, "msg": "Not found"})
+    resp.text = AsyncMock(
+        return_value='{"success": false, "msg": "Not found"}'
+    )
 
     with pytest.raises(OpenMoticsError, match="Not found"):
         await OpenMoticsClient._read_response("/path", resp)
@@ -222,3 +229,37 @@ async def test_reset_session_creates_fresh_session(
             await task
 
     mock_session.close.assert_called_once()
+
+
+async def test_read_response_raw_list(
+    client: OpenMoticsClient, mock_session: MagicMock
+) -> None:
+    """V1 API list responses are raw JSON arrays and are returned as-is."""
+    client._token = "valid"
+    thermostats = [{"id": 0, "name": "Living"}]
+
+    mock_session.request = MagicMock(
+        return_value=_mock_response(200, json_data=thermostats)
+    )
+
+    result = await client.get_thermostat_control()
+    assert result == thermostats
+
+
+async def test_read_response_empty_body(
+    client: OpenMoticsClient, mock_session: MagicMock
+) -> None:
+    """V1 API PUT returns 200 with an empty body."""
+    client._token = "valid"
+
+    mock_session.request = MagicMock(
+        return_value=_mock_response(200, json_data=None, text="")
+    )
+
+    result = await client.set_thermostat_control(0, {"setpoint": 20.0})
+    assert result == {}
+
+    call_args = mock_session.request.call_args
+    assert call_args.args[0] == "PUT"
+    assert call_args.args[1].endswith("/api/thermostat/control/0")
+    assert call_args.kwargs["json"] == {"setpoint": 20.0}

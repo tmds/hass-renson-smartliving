@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -20,7 +21,7 @@ def remove_stale_entities(
     hass: HomeAssistant,
     entry: ConfigEntry,
     domain: str,
-    current_entities: list[OpenMoticsEntity],
+    current_entities: Sequence[OpenMoticsEntity],
 ) -> None:
     """Remove entities that no longer exist on the gateway."""
     ent_reg = er.async_get(hass)

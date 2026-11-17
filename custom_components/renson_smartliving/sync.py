@@ -39,6 +39,7 @@ CHANGE_EVENTS = {
     "INPUT_CHANGE",
     "SENSOR_CHANGE",
     "SHUTTER_CHANGE",
+    "THERMOSTAT_CHANGE",
 }
 
 
@@ -176,6 +177,20 @@ class SyncLoop:
             shutter_status = await self._client.get_shutter_status()
             config["output_status"] = output_status
             config["shutter_status"] = shutter_status
+            # Thermostats (V1 API): the control list holds both the
+            # configuration (name, room) and the current status.
+            try:
+                config["thermostat_status"] = (
+                    await self._client.get_thermostat_control()
+                )
+            except OpenMoticsError:
+                # Older firmware without the V1 thermostat API.
+                _LOGGER.warning(
+                    "Gateway %s has no V1 thermostat API, "
+                    "climate entities are not created",
+                    self._client.host,
+                )
+                config["thermostat_status"] = []
             self._on_full_update(config)
 
         except BaseException:
