@@ -175,7 +175,7 @@ class OpenMoticsCover(OpenMoticsEntity, CoverEntity):
         """Drive the shutter to target and stop; runs as background task."""
         om_target = round(99 - target * 99 / 100)
         state = self.coordinator.get_shutter_state(self._shutter_id)
-        om_current = state["position"]
+        om_current = state["position"] if state else 0
         going_up = om_target < om_current  # OM: 0 = fully open
         config = self._shutter_config() or {}
         travel = config.get("timer_up" if going_up else "timer_down")

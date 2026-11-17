@@ -73,7 +73,9 @@ def _linked_output(
             # 108/109 up/stop/up, down/stop/down toggles) and the group
             # action run "2,<group_action_id>".
             actions = str(inp.get("basic_actions") or "").split(",")
-            if len(actions) == 2 and actions[0] in ("100", "101", "102", "103", "108", "109"):
+            if len(actions) == 2 and actions[0] in (
+                "100", "101", "102", "103", "108", "109"
+            ):
                 shutter_id = int(actions[1])
                 for shutter in coordinator.shutters:
                     if shutter.get("id") == shutter_id:
@@ -86,6 +88,7 @@ def _linked_output(
             if output.get("id") == action:
                 return {"id": action, "name": output.get("name")}
         return {"id": action, "name": None}
+    return None
 
 
 def _linked_group_action(

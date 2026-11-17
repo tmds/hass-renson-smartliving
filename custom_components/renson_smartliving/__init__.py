@@ -113,7 +113,7 @@ def _resolve_any_coordinator(
         runtime = getattr(entry, "runtime_data", None)
         coordinator = getattr(runtime, "coordinator", None)
         if coordinator is not None:
-            return coordinator
+            return cast("OpenMoticsCoordinator", coordinator)
     raise ValueError("No loaded OpenMotics config entry found")
 
 
