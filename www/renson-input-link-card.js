@@ -48,7 +48,8 @@ class RensonInputLinkCard extends HTMLElement {
       // non-fatal: rows fall back to the generic text
     }
     this._gaLoading = false;
-    if (!this._open) this._render();
+    if (this._open && this._dialogRefresh) this._dialogRefresh();
+    else if (!this._open) this._render();
   }
 
   _gaName(id) {
@@ -186,15 +187,17 @@ class RensonInputLinkCard extends HTMLElement {
       const extended = !!(st && st.attributes && st.attributes.has_extended_actions);
       const gaId = st && st.attributes ? st.attributes.linked_group_action_id : undefined;
       let linkText;
-      if (linked) {
-        linkText = this._t("linked_to", { name: linked.name || ("output " + linked.id) });
-      } else if (gaId !== undefined) {
+      if (gaId !== undefined) {
         linkText = this._t("runs_automation", { name: this._gaName(gaId) });
       } else if (extended) {
         const desc = this._describeBasic(
           st && st.attributes ? st.attributes.basic_actions : ""
         );
-        linkText = desc || this._t("gateway_automation");
+        linkText = desc || (linked
+          ? this._t("linked_to", { name: linked.name || ("output " + linked.id) })
+          : this._t("gateway_automation"));
+      } else if (linked) {
+        linkText = this._t("linked_to", { name: linked.name || ("output " + linked.id) });
       } else {
         linkText = this._t("not_linked");
       }
@@ -317,6 +320,7 @@ class RensonInputLinkCard extends HTMLElement {
 
   _openDialog(entityId) {
     this._open = true;
+    if (!this._gas && !this._gaLoading) this._fetchGas();
     const overlay = this.renderRoot.querySelector(".overlay");
     overlay.style.display = "flex";
     const current = this._linked(entityId);
@@ -365,7 +369,6 @@ class RensonInputLinkCard extends HTMLElement {
         <button class="close">&times;</button>
         <h3>${this._friendly(entityId)}</h3>
         <div class="sub">${this._t("link_hint")}</div>
-        ${extended ? `<div class="warn">${this._t("extended_warning")}</div>` : ""}
         <div class="tabs">
           <button class="tab tabout active">${this._t("tab_output")}</button>
           <button class="tab tabauto">${this._t("tab_automation")}</button>
@@ -395,6 +398,10 @@ class RensonInputLinkCard extends HTMLElement {
     let selectedGA = gaIdAttr !== undefined
       ? gaIdAttr
       : (currentGAs.size ? currentGAs.values().next().value : null);
+    // Open on the Automation tab when the button currently triggers one.
+    const initialMode = (gaIdAttr !== undefined || (selectedId === null && currentGAs.size > 0))
+      ? "automation"
+      : "output";
     const roomRow = overlay.querySelector(".roomrow");
     const tabsHost = overlay.querySelector(".tabs");
     const setMode = (m) => {
@@ -404,6 +411,7 @@ class RensonInputLinkCard extends HTMLElement {
       roomRow.style.display = m === "output" ? "" : "none";
       if (m === "output") {
         selectedGA = null;
+        this._dialogRefresh = null;
         optsHost.innerHTML = renderOpts();
         wireOpts();
         selected = null;
@@ -415,6 +423,12 @@ class RensonInputLinkCard extends HTMLElement {
         selected = null;
         optsHost.innerHTML = renderGAs();
         wireGAs();
+        // Re-render when the group actions fetch completes while open.
+        this._dialogRefresh = () => {
+          optsHost.innerHTML = renderGAs();
+          wireGAs();
+          syncSave();
+        };
       }
       syncSave();
     };
@@ -493,10 +507,12 @@ class RensonInputLinkCard extends HTMLElement {
       wireOpts();
       syncSave();
     });
+    setMode(initialMode);
     const close = () => {
       overlay.style.display = "none";
       overlay.innerHTML = "";
       this._open = false;
+      this._dialogRefresh = null;
     };
     overlay.querySelector(".close").addEventListener("click", close);
     overlay.addEventListener("click", (e) => {

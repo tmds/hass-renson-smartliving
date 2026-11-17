@@ -237,6 +237,19 @@ def test_linked_output_shutter_toggle(coordinator) -> None:
     assert _linked_output(coordinator, 21) == {"id": 22, "name": "bureau screen"}
 
 
+def test_linked_output_shutter_directional_toggles(coordinator) -> None:
+    """108/109 (up/stop/up, down/stop/down) also count as screen links."""
+    coordinator.inputs = [
+        {"id": 10, "name": "btn", "action": 240, "basic_actions": "108,4"},
+        {"id": 13, "name": "btn", "action": 240, "basic_actions": "109,4"},
+        {"id": 14, "name": "btn", "action": 240, "basic_actions": "100,4"},
+    ]
+    coordinator.shutters = [{"id": 4, "name": "keuken screen"}]
+    assert _linked_output(coordinator, 10) == {"id": 4, "name": "keuken screen"}
+    assert _linked_output(coordinator, 13) == {"id": 4, "name": "keuken screen"}
+    assert _linked_output(coordinator, 14) == {"id": 4, "name": "keuken screen"}
+
+
 def test_linked_output_shutter_unknown(coordinator) -> None:
     coordinator.inputs = [
         {"id": 21, "name": "btn", "action": 240, "basic_actions": "103,99"}

@@ -68,10 +68,12 @@ def _linked_output(
         if action is None:
             return None
         if action == 240:
-            # Extended actions: recognise the shutter toggle "103,<shutter>"
-            # and the group action run "2,<group_action_id>".
+            # Extended actions: recognise single-pair shutter encodings
+            # ("103,<shutter>" toggle but also 100/101/102 up/down/stop and
+            # 108/109 up/stop/up, down/stop/down toggles) and the group
+            # action run "2,<group_action_id>".
             actions = str(inp.get("basic_actions") or "").split(",")
-            if len(actions) == 2 and actions[0] == "103":
+            if len(actions) == 2 and actions[0] in ("100", "101", "102", "103", "108", "109"):
                 shutter_id = int(actions[1])
                 for shutter in coordinator.shutters:
                     if shutter.get("id") == shutter_id:
