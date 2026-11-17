@@ -79,7 +79,10 @@ class RensonRoomCard extends HTMLElement {
     for (const eid of lights) {
       const s = this._hass.states[eid];
       const on = s && s.state === "on";
-      const name = (s && s.attributes.friendly_name) || eid;
+      const raw = (s && s.attributes.friendly_name) || eid;
+      const name = raw.includes(") ")
+        ? raw.split(") ").slice(1).join(") ")
+        : raw;
       chips.push(
         `<button class="chip light ${on ? "on" : ""}" data-entity="${eid}" data-domain="light" ` +
         `data-name="${name}">` +
@@ -89,7 +92,10 @@ class RensonRoomCard extends HTMLElement {
     for (const eid of covers) {
       const s = this._hass.states[eid];
       const open = s && s.state === "open";
-      const name = (s && s.attributes.friendly_name) || eid;
+      const raw = (s && s.attributes.friendly_name) || eid;
+      const name = raw.includes(") ")
+        ? raw.split(") ").slice(1).join(") ")
+        : raw;
       chips.push(
         `<button class="chip cover ${open ? "on" : ""}" data-entity="${eid}" data-domain="cover" ` +
         `data-name="${name}">` +
