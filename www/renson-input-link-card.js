@@ -21,11 +21,33 @@ class RensonInputLinkCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     const lang = (hass.locale && hass.locale.language) || this._lang || "en";
+    // Detect physical button presses: event entities update their state
+    // (last-triggered timestamp) when the gateway pushes INPUT_CHANGE.
+    let pressed = null;
+    for (const eid of this._config.entities || []) {
+      const st = hass.states[eid];
+      const cur = st ? String(st.state) : null;
+      if (this._lastStates && eid in this._lastStates
+          && cur !== null && cur !== this._lastStates[eid]) {
+        this._flash = this._flash || {};
+        this._flash[eid] = Date.now();
+        pressed = eid;
+      }
+      this._lastStates = this._lastStates || {};
+      this._lastStates[eid] = cur;
+    }
     const sig = this._signature(lang);
-    if (sig !== this._lastSig && !this._open) {
+    if ((sig !== this._lastSig || pressed) && !this._open) {
       this._lastSig = sig;
       this._lang = lang;
       this._render();
+    }
+    if (pressed && !this._flashTimer) {
+      // Re-render once to clear the flash animation.
+      this._flashTimer = setTimeout(() => {
+        this._flashTimer = null;
+        if (!this._open) this._render();
+      }, 2600);
     }
     // Fetch the gateway automations once so rows can show WHICH automation
     // an input triggers (attribute linked_group_action_id).
@@ -186,6 +208,8 @@ class RensonInputLinkCard extends HTMLElement {
       const st = this._hass && this._hass.states[eid];
       const extended = !!(st && st.attributes && st.attributes.has_extended_actions);
       const gaId = st && st.attributes ? st.attributes.linked_group_action_id : undefined;
+      const flashing = this._flash && this._flash[eid]
+        && (Date.now() - this._flash[eid]) < 2500;
       let linkText;
       if (gaId !== undefined) {
         linkText = this._t("runs_automation", { name: this._gaName(gaId) });
@@ -202,9 +226,9 @@ class RensonInputLinkCard extends HTMLElement {
         linkText = this._t("not_linked");
       }
       return `
-        <div class="row" data-entity="${eid}">
+        <div class="row ${flashing ? "flash" : ""}" data-entity="${eid}">
           <div class="info">
-            <div class="name">${this._friendly(eid)}</div>
+            <div class="name">${this._friendly(eid)}${flashing ? ' <ha-icon class="pressicon" icon="mdi:gesture-tap"></ha-icon>' : ""}</div>
             <div class="link ${linked ? "on" : ""}">${linkText}</div>
           </div>
           <button class="go" data-entity="${eid}">${this._t("link")}</button>
@@ -225,6 +249,16 @@ class RensonInputLinkCard extends HTMLElement {
           padding: 7px 0; gap: 10px;
         }
         .row + .row { border-top: 1px solid var(--divider-color, rgba(0,0,0,.06)); }
+        .row.flash {
+          animation: renson-press 1.2s ease-in-out 2;
+          border-radius: 8px;
+        }
+        @keyframes renson-press {
+          0%, 100% { background: transparent; }
+          50% { background: var(--accent-color, #03a9f4); opacity: .85; }
+        }
+        .pressicon { --mdc-icon-size: 18px; vertical-align: -3px;
+                     color: var(--accent-color, #03a9f4); }
         .name { font-size: .92em; font-weight: 600; }
         .link { font-size: .78em; color: var(--secondary-text-color); }
         .link.on { color: var(--primary-color); font-weight: 600; }
