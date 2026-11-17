@@ -11,7 +11,7 @@
  *   outputs:  [light.keuken_inbouwspots, ...]            (optional; defaults to
  *              all OpenMotics lights/switches in the same area as the inputs)
  */
-import { t } from "./renson-i18n.js?v=7";
+import { t } from "./renson-i18n.js?v=8";
 
 class RensonInputLinkCard extends HTMLElement {
   static getStubConfig() {
@@ -90,7 +90,7 @@ class RensonInputLinkCard extends HTMLElement {
       const domain = eid.split(".")[0];
       const info = hass.entities[eid];
       return (
-        (domain === "light" || domain === "switch") &&
+        (domain === "light" || domain === "switch" || domain === "cover") &&
         info && info.platform === "renson_smartliving"
       );
     });
@@ -255,7 +255,7 @@ class RensonInputLinkCard extends HTMLElement {
           return `
           <div class="opt ${sel ? "sel" : ""}" data-entity="${eid}">
             <div>
-              <div>${this._friendly(eid)}${sel ? ' <span class="cur">' + this._t("currently_linked") + "</span>" : ""}</div>
+              <div>${this._friendly(eid)}${eid.startsWith("cover.") ? ' <span class="cur">' + this._t("screen_label") + "</span>" : ""}${sel ? ' <span class="cur">' + this._t("currently_linked") + "</span>" : ""}</div>
               <div class="dom">${eid}</div>
             </div>
           </div>`;
@@ -287,7 +287,7 @@ class RensonInputLinkCard extends HTMLElement {
         <div class="opts">${renderOpts()}</div>
         <div class="actions">
           <button class="cancel">${t(this._lang, "cancel")}</button>
-          <button class="save" ${extended && !selected ? "disabled" : ""}>${t(this._lang, "save_link")}</button>
+          <button class="save" ${extended && selectedId === null ? "disabled" : ""}>${t(this._lang, "save_link")}</button>
         </div>
       </div>`;
 

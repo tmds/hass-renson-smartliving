@@ -4,7 +4,7 @@
  * The language follows hass.locale.language (e.g. "nl", "en-US");
  * anything unknown falls back to English. Import it from the cards:
  *
- *   import { t, dayLabels } from "./renson-i18n.js?v=7";
+ *   import { t, dayLabels } from "./renson-i18n.js?v=8";
  *
  * Bump the ?v= in every importing card when this file changes.
  */
@@ -14,6 +14,7 @@ const STRINGS = {
     hvac_mode_heating: "HVAC mode: heating",
     hvac_mode_cooling: "HVAC mode: cooling",
     screen_timings: "Configure screen timings",
+    configure_timings: "configureer de timings",
     timer_up: "Timer up (seconds to open)",
     timer_down: "Timer down (seconds to close)",
     save: "Save",
@@ -59,11 +60,13 @@ const STRINGS = {
     room: "Room",
     all_rooms: "All rooms",
     currently_linked: "currently linked",
+    screen_label: "screen",
   },
   nl: {
     hvac_mode_heating: "HVAC-modus: verwarming",
     hvac_mode_cooling: "HVAC-modus: koeling",
     screen_timings: "Screentimers instellen",
+    configure_timings: "configureer de timings",
     timer_up: "Timer open (seconden tot open)",
     timer_down: "Timer dicht (seconden tot dicht)",
     save: "Opslaan",
@@ -109,6 +112,7 @@ const STRINGS = {
     room: "Ruimte",
     all_rooms: "Alle ruimtes",
     currently_linked: "nu gekoppeld",
+    screen_label: "scherm",
   },
 };
 

@@ -100,9 +100,9 @@ def _resolve_output_id(
         return None
     _coordinator, entity = _resolve_om_entity(hass, output_entity)
     domain = entity.entity_id.split(".")[0]
-    if domain not in ("light", "switch"):
+    if domain not in ("light", "switch", "cover"):
         raise ValueError(
-            f"{output_entity} is not an OpenMotics light or switch"
+            f"{output_entity} is not an OpenMotics light, switch or cover"
         )
     output = cast("int | None", entity._om_id)  # noqa: SLF001
     if output is None:
@@ -114,19 +114,23 @@ def _update_input_config(
     coordinator: OpenMoticsCoordinator,
     input_id: int,
     action: int | None,
+    basic_actions: str | None = None,
 ) -> None:
     """Merge the written action into the local input config cache."""
     for inp in coordinator.inputs:
         if inp.get("id") == input_id:
             inp["action"] = action
+            if basic_actions is not None:
+                inp["basic_actions"] = basic_actions
             break
     coordinator.async_set_updated_data(coordinator.data)
 
 
 async def _async_set_input_link(call: ServiceCall) -> None:
+    output_entity_id = call.data.get("output_entity")
     output_id = _resolve_output_id(
         call.hass,
-        call.data.get("output_entity"),
+        output_entity_id,
         call.data.get("output_id"),
     )
     action = 255 if output_id is None else output_id
@@ -153,15 +157,26 @@ async def _async_set_input_link(call: ServiceCall) -> None:
                 "on the gateway. Repeat with force=true to overwrite them."
             )
         config: dict[str, Any] = {"id": input_id, "action": action}
-        if current is not None and current.get("basic_actions"):
+        # Covers (screens/shutters) cannot be toggled as a plain output: they
+        # get the classic shutter toggle action 103,<shutter> (up/stop/down).
+        if output_entity_id and output_entity_id.split(".")[0] == "cover":
+            config["action"] = 240
+            config["basic_actions"] = f"103,{output_id}"
+        elif current is not None and current.get("basic_actions"):
             config["basic_actions"] = current["basic_actions"]
         await coordinator.client.set_input_configuration(config)
-        _update_input_config(coordinator, input_id, None if action == 255 else action)
+        _update_input_config(
+            coordinator,
+            input_id,
+            None if action == 255 else action,
+            config.get("basic_actions"),
+        )
         _LOGGER.info(
-            "Input link updated for %s (input %d): action=%s",
+            "Input link updated for %s (input %d): action=%s basic_actions=%s",
             entity_id,
             input_id,
-            action,
+            config["action"],
+            config.get("basic_actions", ""),
         )
 
 

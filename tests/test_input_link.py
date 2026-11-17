@@ -227,13 +227,66 @@ def test_event_entity_attributes_extended_actions(coordinator) -> None:
     }
 
 
+def test_linked_output_shutter_toggle(coordinator) -> None:
+    coordinator.inputs = [
+        {"id": 21, "name": "btn", "action": 240, "basic_actions": "103,22"}
+    ]
+    coordinator.shutters = [{"id": 22, "name": "bureau screen"}]
+    assert _linked_output(coordinator, 21) == {"id": 22, "name": "bureau screen"}
+
+
+def test_linked_output_shutter_unknown(coordinator) -> None:
+    coordinator.inputs = [
+        {"id": 21, "name": "btn", "action": 240, "basic_actions": "103,99"}
+    ]
+    coordinator.shutters = []
+    assert _linked_output(coordinator, 21) == {"id": 99, "name": None}
+
+
 def test_has_extended_actions_false_cases(coordinator) -> None:
     from custom_components.renson_smartliving.event import _has_extended_actions
 
     assert not _has_extended_actions({"action": 255, "basic_actions": ""})
     assert not _has_extended_actions({"action": 15, "basic_actions": ""})
     assert not _has_extended_actions({"action": 240, "basic_actions": ""})
+    assert not _has_extended_actions({"action": 240, "basic_actions": "103,22"})
     assert _has_extended_actions({"action": 240, "basic_actions": "2,1"})
+    assert _has_extended_actions(
+        {"action": 240, "basic_actions": "207,2,236,0,2,1,236,255"}
+    )
+
+
+async def test_set_input_link_cover_uses_shutter_toggle(
+    hass: HomeAssistant, coordinator
+) -> None:
+    """A cover target writes the classic shutter toggle 103,<shutter>."""
+    from custom_components.renson_smartliving import _async_set_input_link
+
+    coordinator.inputs = [{"id": 5, "name": "btn", "action": 255}]
+    input_entity = _event_entity(coordinator, 5)
+    input_entity.hass = hass
+    input_entity.entity_id = "event.test_input"
+    registry: dict = hass.data.setdefault(DOMAIN, {}).setdefault("om_entities", {})
+    registry["event.test_input"] = input_entity
+
+    cover_entity = MagicMock()
+    cover_entity.entity_id = "cover.bureau_screen"
+    cover_entity._om_id = 22
+    registry["cover.bureau_screen"] = cover_entity
+
+    call = ServiceCall(
+        hass,
+        DOMAIN,
+        "set_input_link",
+        {ATTR_ENTITY_ID: ["event.test_input"], "output_entity": "cover.bureau_screen"},
+    )
+    with patch.object(
+        coordinator.client, "set_input_configuration", new_callable=AsyncMock
+    ) as mock_write:
+        await _async_set_input_link(call)
+    mock_write.assert_awaited_once_with(
+        {"id": 5, "action": 240, "basic_actions": "103,22"}
+    )
 
 
 async def test_set_input_link_requires_force_on_extended(
@@ -292,7 +345,7 @@ async def test_set_input_link_unlink_extended_requires_force(
     from custom_components.renson_smartliving import _async_set_input_link
 
     coordinator.inputs = [
-        {"id": 5, "name": "btn", "action": 240, "basic_actions": "103,22"}
+        {"id": 5, "name": "btn", "action": 240, "basic_actions": "2,1"}
     ]
     input_entity = _event_entity(coordinator, 5)
     input_entity.hass = hass

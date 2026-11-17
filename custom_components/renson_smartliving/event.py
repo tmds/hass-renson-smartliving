@@ -60,12 +60,24 @@ def create_entities(
 def _linked_output(
     coordinator: OpenMoticsCoordinator, input_id: int
 ) -> dict[str, Any] | None:
-    """Describe the output directly linked to an input, if any."""
+    """Describe the output or screen linked to an input, if any."""
     for inp in coordinator.inputs:
         if inp.get("id") != input_id:
             continue
         action = inp.get("action")
-        if action is None or action >= 240:
+        if action is None:
+            return None
+        if action == 240:
+            # Extended actions: recognise the shutter toggle "103,<shutter>".
+            actions = str(inp.get("basic_actions") or "").split(",")
+            if len(actions) == 2 and actions[0] == "103":
+                shutter_id = int(actions[1])
+                for shutter in coordinator.shutters:
+                    if shutter.get("id") == shutter_id:
+                        return {"id": shutter_id, "name": shutter.get("name")}
+                return {"id": shutter_id, "name": None}
+            return None
+        if action >= 240:
             return None
         for output in coordinator.outputs:
             if output.get("id") == action:
@@ -75,14 +87,20 @@ def _linked_output(
 
 
 def _has_extended_actions(inp: dict[str, Any]) -> bool:
-    """True when the input has extended basic actions (timers, group actions).
+    """True when the input has extended basic actions beyond a simple link.
 
-    Writing a direct output link to such an input erases those extended
+    Writing a direct output link (or unlinking) erases those extended
     actions on the gateway: an input has either a direct link OR extended
-    actions, never both.
+    actions, never both. The single shutter toggle "103,<shutter>" is NOT
+    extended: it is a first-class link the card can manage.
     """
     action = inp.get("action")
-    return action is not None and action >= 240 and bool(inp.get("basic_actions"))
+    if action is None or action < 240:
+        return False
+    actions = str(inp.get("basic_actions") or "").split(",")
+    if len(actions) == 2 and actions[0] == "103":
+        return False
+    return bool(inp.get("basic_actions"))
 
 
 class OpenMoticsEvent(OpenMoticsEntity, EventEntity):
