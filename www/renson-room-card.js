@@ -135,6 +135,8 @@ class RensonRoomCard extends HTMLElement {
           cursor: pointer;
           transition: border-color .15s ease, transform .05s ease;
           display: block;
+          min-height: 150px;
+          box-sizing: border-box;
         }
         ha-card:hover { border-color: var(--primary-color); }
         ha-card:active { transform: scale(.99); }
