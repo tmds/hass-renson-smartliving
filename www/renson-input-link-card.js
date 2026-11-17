@@ -11,7 +11,7 @@
  *   outputs:  [light.keuken_inbouwspots, ...]            (optional; defaults to
  *              all OpenMotics lights/switches in the same area as the inputs)
  */
-import { t } from "./renson-i18n.js?v=6";
+import { t } from "./renson-i18n.js?v=7";
 
 class RensonInputLinkCard extends HTMLElement {
   static getStubConfig() {

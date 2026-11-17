@@ -4,7 +4,7 @@
  * The language follows hass.locale.language (e.g. "nl", "en-US");
  * anything unknown falls back to English. Import it from the cards:
  *
- *   import { t, dayLabels } from "./renson-i18n.js?v=1";
+ *   import { t, dayLabels } from "./renson-i18n.js?v=7";
  *
  * Bump the ?v= in every importing card when this file changes.
  */

@@ -11,7 +11,7 @@
  *   type: custom:renson-thermostat-config-card
  *   entity: climate.praktijk
  */
-import { t, dayLabels, dayLabel } from "./renson-i18n.js?v=6";
+import { t, dayLabels, dayLabel } from "./renson-i18n.js?v=7";
 
 class RensonThermostatConfigCard extends HTMLElement {
   static getStubConfig() {
