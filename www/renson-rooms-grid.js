@@ -182,6 +182,7 @@ class RensonRoomsGrid extends HTMLElement {
         }
         .tile, a.tile {
           display: block;
+          position: relative;
           text-decoration: none;
           color: inherit;
           background: var(--card-background-color, var(--paper-card-background-color));
@@ -206,6 +207,24 @@ class RensonRoomsGrid extends HTMLElement {
         }
         .tile[draggable="true"] { cursor: grab; }
         .tile[draggable="true"]:active { cursor: grabbing; }
+        .reorder {
+          position: absolute; top: 8px; left: 10px; z-index: 2;
+          display: flex; align-items: center; gap: 4px;
+          background: var(--card-background-color, #fff);
+          border: 1px solid var(--divider-color);
+          border-radius: 10px; padding: 2px 6px;
+        }
+        .tile { position: relative; }
+        .reorder .mv {
+          border: none; background: transparent;
+          color: var(--primary-text-color);
+          cursor: pointer; font-size: .95em; padding: 2px 4px;
+        }
+        .reorder .mv:disabled { color: var(--divider-color); cursor: default; }
+        .reorder .idx {
+          font-size: .72em; color: var(--secondary-text-color);
+          min-width: 16px; text-align: center;
+        }
         .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .name { font-weight: 700; font-size: 1.05em; color: var(--primary-text-color); }
         .sub { font-size: .78em; color: var(--secondary-text-color); margin-top: 4px; }
@@ -251,7 +270,7 @@ class RensonRoomsGrid extends HTMLElement {
         <button class="editbtn" title="Reorder rooms">
           <ha-icon icon="${this._editMode ? "mdi:check" : "mdi:pencil"}"></ha-icon>
         </button>
-        ${this._editMode ? `<span class="hint">Drag tiles to reorder, click the check to finish</span>` : ""}
+        ${this._editMode ? `<span class="hint">Use the arrows to reorder, click the check to finish</span>` : ""}
         <div class="grid">
           ${rooms.map((r) => this._roomHtml(r)).join("")}
         </div>
@@ -275,42 +294,34 @@ class RensonRoomsGrid extends HTMLElement {
       this._editMode = !this._editMode;
       this._render();
     });
-    if (this._editMode) this._wireDragAndDrop();
+    if (this._editMode) this._wireEditButtons();
   }
 
-  _wireDragAndDrop() {
+  _wireEditButtons() {
     const tiles = [...this.renderRoot.querySelectorAll(".tile")];
-    let dragIndex = null;
     tiles.forEach((tile, idx) => {
-      tile.draggable = true;
-      tile.addEventListener("dragstart", (e) => {
-        dragIndex = idx;
-        tile.classList.add("dragging");
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", String(idx));
-      });
-      tile.addEventListener("dragend", () => {
-        tile.classList.remove("dragging");
-        tiles.forEach((t) => t.classList.remove("drop-target"));
-      });
-      tile.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        tile.classList.add("drop-target");
-      });
-      tile.addEventListener("dragleave", () => {
-        tile.classList.remove("drop-target");
-      });
-      tile.addEventListener("drop", (e) => {
-        e.preventDefault();
-        tile.classList.remove("drop-target");
-        if (dragIndex === null || dragIndex === idx) return;
-        const rooms = this._config.rooms;
-        const [moved] = rooms.splice(dragIndex, 1);
-        rooms.splice(idx, 0, moved);
-        this._lastSig = null;
-        this._render();
-        this._persistOrder();
+      const bar = document.createElement("div");
+      bar.className = "reorder";
+      bar.innerHTML = `
+        <button class="mv" data-dir="-1" title="Move left" ${idx === 0 ? "disabled" : ""}>&larr;</button>
+        <span class="idx">${idx + 1}</span>
+        <button class="mv" data-dir="1" title="Move right" ${idx === tiles.length - 1 ? "disabled" : ""}>&rarr;</button>
+      `;
+      tile.prepend(bar);
+      bar.querySelectorAll(".mv").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const dir = Number(btn.dataset.dir);
+          const target = idx + dir;
+          if (target < 0 || target >= this._config.rooms.length) return;
+          const rooms = this._config.rooms;
+          const [moved] = rooms.splice(idx, 1);
+          rooms.splice(target, 0, moved);
+          this._lastSig = null;
+          this._render();
+          this._persistOrder();
+        });
       });
     });
   }
