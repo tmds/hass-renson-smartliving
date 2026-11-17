@@ -117,7 +117,10 @@ class RensonRoomCard extends HTMLElement {
     const temp = climate ? climate.attributes.current_temperature : null;
     const target = climate ? climate.attributes.temperature : null;
     const lights = this._lightsOn();
-    const heat = climate && climate.state === "heat";
+    // Badge alleen bij effectief verwarmen (hvac_action), niet bij mode "heat".
+    const heat = climate && climate.attributes
+      && (climate.attributes.hvac_action === "heating"
+        || (climate.attributes.hvac_action === undefined && climate.state === "heat"));
     const sub = [];
     if (temp !== null && temp !== undefined) {
       sub.push(`${this._fmtTemp(target)}\u00B0 target`);

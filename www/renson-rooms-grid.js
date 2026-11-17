@@ -113,7 +113,11 @@ class RensonRoomsGrid extends HTMLElement {
     const cl = room.climate ? this._hass.states[room.climate] : null;
     const temp = cl ? cl.attributes.current_temperature : null;
     const target = cl ? cl.attributes.temperature : null;
-    const heat = cl && cl.state === "heat";
+    // Badge alleen als er effectief verwarmd wordt: hvac_action (uit
+    // steering_power), niet de hvac_mode (die is bij heating-only altijd "heat").
+    const heat = cl && cl.attributes
+      && (cl.attributes.hvac_action === "heating"
+        || (cl.attributes.hvac_action === undefined && cl.state === "heat"));
     const lights = room.lights || [];
     const covers = room.covers || [];
     const chips = [];
