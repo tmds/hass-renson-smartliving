@@ -499,20 +499,21 @@ class RensonAutomationEditor extends HTMLElement {
       }
     };
 
-    // Indentation: IF opens a block, THEN/ELSE stay at the IF level, branch
-    // contents indent one level, ENDIF closes. Actions outside blocks: 0.
-    const depths = [];
-    let openIfs = 0;
-    for (const s of steps) {
-      if (s.kind === "if") { depths.push(openIfs); openIfs++; }
-      else if (s.kind === "and" || s.kind === "or") depths.push(openIfs);
-      else if (s.kind === "then" || s.kind === "else") depths.push(Math.max(0, openIfs - 1));
-      else if (s.kind === "endif") { openIfs = Math.max(0, openIfs - 1); depths.push(openIfs); }
-      else depths.push(openIfs);
-    }
+    let renderDev = null;
 
     const renderSteps = () => {
       const list = this.renderRoot.querySelector(".steps");
+      // Recompute indentation from the CURRENT steps (add/move/delete change
+      // the block structure).
+      const depths = [];
+      let openIfs = 0;
+      for (const s of steps) {
+        if (s.kind === "if") { depths.push(openIfs); openIfs++; }
+        else if (s.kind === "and" || s.kind === "or") depths.push(openIfs);
+        else if (s.kind === "then" || s.kind === "else") depths.push(Math.max(0, openIfs - 1));
+        else if (s.kind === "endif") { openIfs = Math.max(0, openIfs - 1); depths.push(openIfs); }
+        else depths.push(openIfs);
+      }
       list.innerHTML = steps.map((s, i) => {
         const kw = KW_META[s.kind];
         const depth = depths[i] || 0;
@@ -547,7 +548,54 @@ class RensonAutomationEditor extends HTMLElement {
       for (const b of list.querySelectorAll(".del")) b.addEventListener("click", () => {
         steps.splice(Number(b.dataset.i), 1); renderSteps();
       });
+      // Grey out add-step options that cannot follow the current sequence.
+      const sel = this.renderRoot.querySelector(".addsel");
+      if (sel) {
+        const allow = _allowedNext(steps);
+        const invalid = sel.value && !allow.has(sel.value);
+        Array.from(sel.options).forEach((o) => {
+          o.disabled = !allow.has(o.value);
+        });
+        if (invalid && renderDev) { sel.value = ""; renderDev(); }
+      }
     };
+
+    function _allowedNext(steps) {
+      // Mirrors the gateway IF/THEN/ELSE structure (see group_actions.py):
+      // returns the add-menu option values valid after the current steps.
+      const stack = [];
+      for (const s of steps) {
+        if (s.kind === "if") stack.push("if");
+        else if (s.kind === "then") { if (stack.length) stack[stack.length - 1] = "then"; }
+        else if (s.kind === "else") { if (stack.length) stack[stack.length - 1] = "else"; }
+        else if (s.kind === "endif") stack.pop();
+      }
+      const top = stack[stack.length - 1] || null;
+      const allow = new Set();
+      const ACTIONS = [
+        "output:on", "output:off", "output:toggle", "output:on_dim",
+        "output:toggle_dim", "output:on_timer",
+        "shutter:up", "shutter:down", "shutter:stop", "shutter:toggle",
+        "all_off:lights", "all_off:all",
+        "virtual_input:press", "virtual_input:release",
+        "bit:set", "bit:clear", "bit:toggle", "run_action",
+      ];
+      if (!top) {
+        allow.add("if");
+        ACTIONS.forEach((a) => allow.add(a));
+      } else if (top === "if") {
+        // Condition region: more conditions, AND/OR between them, THEN closes.
+        ["and", "or", "cond:output_on", "cond:output_off",
+         "cond:input_on", "cond:input_off", "then"].forEach((k) => allow.add(k));
+      } else {
+        // Branch body: actions and nested IF; THEN-block also allows ELSE.
+        allow.add("endif");
+        if (top === "then") allow.add("else");
+        allow.add("if");
+        ACTIONS.forEach((a) => allow.add(a));
+      }
+      return allow;
+    }
 
     const devOptions = (map, label) =>
       Object.entries(map).map(([id, name]) =>
@@ -618,7 +666,7 @@ class RensonAutomationEditor extends HTMLElement {
     if (!locked) {
       const sel = overlay.querySelector(".addsel");
       const devwrap = overlay.querySelector(".devwrap");
-      const renderDev = () => {
+      const buildDev = () => {
         const v = sel.value;
         let html = "";
         if (v.startsWith("output:") || v.startsWith("cond:output")) {
@@ -648,6 +696,7 @@ class RensonAutomationEditor extends HTMLElement {
         }
         devwrap.innerHTML = html;
       };
+      renderDev = buildDev;
       renderDev();
       sel.addEventListener("change", renderDev);
 
