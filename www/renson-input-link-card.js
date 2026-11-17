@@ -63,6 +63,7 @@ class RensonInputLinkCard extends HTMLElement {
       const resp = raw && raw.response ? raw.response : raw;
       if (resp && Array.isArray(resp.actions)) {
         this._gas = resp.actions.filter((g) => g.name || g.actions);
+        this._gaResp = resp;
         this._shuttersMap = {};
         for (const s of resp.shutters || []) this._shuttersMap[s.id] = s.name || "";
       }
@@ -307,6 +308,12 @@ class RensonInputLinkCard extends HTMLElement {
           color: var(--text-primary-color, #fff);
           border-color: var(--primary-color, #03a9f4);
         }
+        .gaedit {
+          border: 1px solid var(--divider-color, #ccc); background: transparent;
+          color: var(--primary-text-color, #111); border-radius: 8px;
+          padding: 5px 10px; font-size: 12px; cursor: pointer; flex-shrink: 0;
+        }
+        .gaedit:hover { border-color: var(--primary-color, #03a9f4); }
         .roomrow label { font-size: .8em; color: var(--secondary-text-color); }
         .roomrow select {
           flex: 1; padding: 7px 9px; border-radius: 10px;
@@ -463,6 +470,8 @@ class RensonInputLinkCard extends HTMLElement {
         selected = null;
         optsHost.innerHTML = renderGAs();
         wireGAs();
+        // Preload the editor module so the first Edit click is instant.
+        import("/local/renson-automation-editor.js?v=9").catch(() => {});
         // Re-render when the group actions fetch completes while open.
         this._dialogRefresh = () => {
           optsHost.innerHTML = renderGAs();
@@ -492,6 +501,7 @@ class RensonInputLinkCard extends HTMLElement {
           : "")
         + (list.map((g) => `
           <div class="opt ${selectedGA === g.id ? "sel" : ""}" data-ga="${g.id}">
+            <button class="gaedit" data-gaid="${g.id}">${this._t("edit")}</button>
             <div>
               <div>${this._esc(g.name || "#" + g.id)}${currentGAs.has(g.id) ? ' <span class="cur">' + this._t("currently_configured") + "</span>" : ""}</div>
               <div class="dom">${this._esc(this._gaSummary(g))}</div>
@@ -503,11 +513,18 @@ class RensonInputLinkCard extends HTMLElement {
       optsHost.querySelectorAll(".opt").forEach((el) => {
         el.addEventListener("click", (e) => {
           if (e.target.tagName === "INPUT") return;
+          if (e.target.closest("button.gaedit")) return;
           optsHost.querySelectorAll(".opt").forEach((o) => o.classList.remove("sel"));
           el.classList.add("sel");
           const v = el.dataset.ga;
           selectedGA = v === "new" ? "new" : Number(v);
           syncSave();
+        });
+      });
+      optsHost.querySelectorAll("button.gaedit").forEach((b) => {
+        b.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this._openAutomationEditor(Number(b.dataset.gaid));
         });
       });
     };
@@ -591,6 +608,44 @@ class RensonInputLinkCard extends HTMLElement {
     return String(s).replace(/[&<>"']/g, (c) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     }[c]));
+  }
+
+  /* Open the automation editor dialog for one group action. The editor card
+     is loaded as a module and hosted off-screen; its overlay is position:fixed
+     so the dialog shows over everything. The editor opens IMMEDIATELY with
+     the data we already fetched (no wait); when it closes, refresh. */
+  async _openAutomationEditor(gaId) {
+    try {
+      await import("/local/renson-automation-editor.js?v=9");
+    } catch (err) { return; }
+    const C = customElements.get("renson-automation-editor");
+    if (!C) return;
+    const host = document.createElement("div");
+    host.style.cssText =
+      "position:fixed;top:0;left:0;width:0;height:0;overflow:visible;";
+    document.body.appendChild(host);
+    const ed = document.createElement("renson-automation-editor");
+    host.appendChild(ed);
+    ed.setConfig({});
+    if (this._gaResp) {
+      // Inject our fresh data so the editor opens instantly with names.
+      ed._data = this._gaResp;
+    }
+    ed.hass = this._hass;
+    ed.style.cssText = "position:fixed;top:0;left:-10000px;width:0;height:0;";
+    const ga = ((ed._data && ed._data.actions) || []).find((g) => g.id === gaId);
+    if (ga) ed._openEditor(ga);
+    else ed._openNew();
+    const overlay = ed.renderRoot.querySelector(".overlay");
+    const mo = new MutationObserver(() => {
+      if (overlay.style.display === "none") {
+        mo.disconnect();
+        host.remove();
+        this._gas = null;
+        this._fetchGas();
+      }
+    });
+    mo.observe(overlay, { attributes: true, attributeFilter: ["style"] });
   }
 
   _gaSummary(ga) {
