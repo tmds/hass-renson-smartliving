@@ -425,7 +425,7 @@ class OpenMoticsClient:
 
     async def close(self) -> None:
         """Close the HTTP session."""
-        for task, session in self._closing.items():
+        for task, session in list(self._closing.items()):
             task.cancel()
             if not session.closed:
                 await session.close()

@@ -506,6 +506,15 @@ async def async_setup_entry(
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     runtime_data.sync_loop.start()
+
+    async def _on_options_updated(
+        hass: HomeAssistant, updated_entry: OpenMoticsConfigEntry
+    ) -> None:
+        await hass.config_entries.async_reload(updated_entry.entry_id)
+
+    entry.async_on_unload(
+        entry.add_update_listener(_on_options_updated)
+    )
     return True
 
 

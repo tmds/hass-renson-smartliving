@@ -36,8 +36,8 @@ async def test_brightness_conversion_boundaries(
 
     coordinator.client.set_output.reset_mock()
 
-    # Round-trip: HA 0 -> OM -> HA should stay 0
+    # Round-trip: HA 0 -> OM -> HA should stay 0. A slider pushed fully
+    # down (brightness rounds to 0%) is an explicit off on the gateway.
     await light.async_turn_on(brightness=1)
     call_args = coordinator.client.set_output.call_args
-    dimmer_sent = call_args.kwargs.get("dimmer") or call_args[1].get("dimmer")
-    assert dimmer_sent >= 0
+    assert call_args.kwargs.get("is_on") is False
