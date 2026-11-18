@@ -84,8 +84,20 @@ set_input_link:
     group_action_id:
       name: Group action id
       description: >-
-        Gateway automation (group action) to trigger on press, instead of
-        an output. Takes precedence over output_entity/output_id.
+        Gateway automation (group action) to trigger on a short press,
+        instead of an output. Takes precedence over output_entity/output_id.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1
+    group_action_id_long:
+      name: Group action id (long press)
+      description: >-
+        Gateway automation to trigger when the button is held down
+        (long press). Combine with group_action_id for a short + long
+        press button; use alone for a long-press-only button.
       required: false
       selector:
         number:
@@ -150,7 +162,7 @@ get_group_actions:
   description: >-
     Read all gateway automations (group actions) plus the output,
     shutter and input name maps. Used by the automation editor card.
-  fields: []
+  fields: {}
 
 save_group_action:
   name: Save group action

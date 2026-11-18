@@ -11,7 +11,7 @@
  *   outputs:  [light.keuken_inbouwspots, ...]            (optional; defaults to
  *              all OpenMotics lights/switches in the same area as the inputs)
  */
-import { t } from "./renson-i18n.js?v=12";
+import { t } from "./renson-i18n.js?v=14";
 
 class RensonInputLinkCard extends HTMLElement {
   static getStubConfig() {
@@ -64,11 +64,17 @@ class RensonInputLinkCard extends HTMLElement {
       if (resp && Array.isArray(resp.actions)) {
         this._gas = resp.actions.filter((g) => g.name || g.actions);
         this._gaResp = resp;
+        this._gaRetry = false;
         this._shuttersMap = {};
         for (const s of resp.shutters || []) this._shuttersMap[s.id] = s.name || "";
       }
     } catch (err) {
-      // non-fatal: rows fall back to the generic text
+      // non-fatal: rows fall back to the generic text; retry once shortly
+      if (!this._gaRetry) {
+        this._gaRetry = true;
+        setTimeout(() => { this._gaLoading = false; this._fetchGas(); }, 3000);
+        return;
+      }
     }
     this._gaLoading = false;
     if (this._open && this._dialogRefresh) this._dialogRefresh();
@@ -89,14 +95,23 @@ class RensonInputLinkCard extends HTMLElement {
   _describeBasic(ba) {
     if (!ba) return "";
     const t = String(ba).split(",").map(Number);
+    // Combined short + long form the gateway writes:
+    // 207,<long>,236,0,2,<short>,236,255
+    if (t.length === 8 && t[0] >= 207 && t[0] <= 211 && t[2] === 236) {
+      return this._t("ga_on_long", { name: this._gaName(t[1]) })
+        + " · " + this._t("ga_on_short", { name: this._gaName(t[5]) });
+    }
+    // Release-only form: 236,0,2,<short>,236,255
+    if (t.length === 6 && t[0] === 236 && t[2] === 2) {
+      return this._t("ga_on_short", { name: this._gaName(t[3]) });
+    }
     const parts = [];
     for (let i = 0; i + 1 < t.length; i += 2) {
       const a = t[i], n = t[i + 1];
       if (a === 2) {
         parts.push(this._t("ga_press", { name: this._gaName(n) }));
       } else if (a >= 207 && a <= 211) {
-        parts.push(this._t("ga_longpress",
-          { sec: a - 206, name: this._gaName(n) }));
+        parts.push(this._t("ga_on_long", { name: this._gaName(n) }));
       } else if (a === 103) {
         parts.push(this._t("ba_shutter_toggle",
           { name: this._shutterName(n) }));
@@ -292,6 +307,11 @@ class RensonInputLinkCard extends HTMLElement {
           background: var(--secondary-background-color);
           border-radius: 8px; padding: 8px 10px; margin-bottom: 10px;
         }
+        .secthead {
+          font-size: .75em; font-weight: 600; text-transform: uppercase;
+          letter-spacing: .04em; color: var(--secondary-text-color);
+          margin: 10px 2px 4px;
+        }
         .roomrow {
           display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
         }
@@ -331,7 +351,24 @@ class RensonInputLinkCard extends HTMLElement {
           border: 1px solid transparent; font-size: .9em;
         }
         .opts {
-          max-height: min(46vh, 420px); overflow-y: auto;
+          overscroll-behavior: contain; padding-right: 4px;
+        }
+        .pressrow {
+          display: flex; align-items: center; gap: 8px; margin: 8px 0;
+        }
+        .pressrow label {
+          font-size: .8em; color: var(--secondary-text-color);
+          width: 118px; flex-shrink: 0;
+        }
+        .pressrow select {
+          flex: 1; padding: 7px 9px; border-radius: 10px;
+          border: 1px solid var(--divider-color);
+          background: var(--secondary-background-color);
+          color: var(--primary-text-color); font-family: inherit; font-size: .85em;
+          min-width: 0;
+        }
+        .grouplist {
+          max-height: min(20vh, 175px); overflow-y: auto;
           overscroll-behavior: contain; padding-right: 4px;
         }
         .opt:hover { background: var(--secondary-background-color); }
@@ -433,20 +470,35 @@ class RensonInputLinkCard extends HTMLElement {
 
     let mode = "output";
     const gaIdAttr = st && st.attributes ? st.attributes.linked_group_action_id : undefined;
-    // Default selection: the automation this input currently triggers. For
-    // combo inputs (long-press + release) take the first one referenced.
+    // Decode the current basic_actions into per-slot selections: which
+    // automation runs on a short press and which on a long press.
+    let currentShort = null;
+    let currentLong = null;
     let currentGAs = new Set();
     if (extended && st && st.attributes && st.attributes.basic_actions) {
       const t = String(st.attributes.basic_actions).split(",").map(Number);
-      for (let i = 0; i + 1 < t.length; i += 2) {
-        if (t[i] === 2 || (t[i] >= 207 && t[i] <= 211)) currentGAs.add(t[i + 1]);
+      if (t.length === 8 && t[0] >= 207 && t[0] <= 211 && t[2] === 236) {
+        // Combined form: 207,<long>,236,0,2,<short>,236,255
+        currentLong = t[1];
+        currentShort = t[5];
+      } else if (t.length === 6 && t[0] === 236 && t[2] === 2) {
+        currentShort = t[3];
+      } else {
+        for (let i = 0; i + 1 < t.length; i += 2) {
+          if (t[i] === 2) currentShort = t[i + 1];
+          else if (t[i] >= 207 && t[i] <= 211) currentLong = t[i + 1];
+        }
       }
     }
-    let selectedGA = gaIdAttr !== undefined
-      ? gaIdAttr
-      : (currentGAs.size ? currentGAs.values().next().value : null);
+    if (currentShort === null && currentLong === null && gaIdAttr !== undefined) {
+      currentShort = gaIdAttr;
+    }
+    if (currentShort !== null) currentGAs.add(currentShort);
+    if (currentLong !== null) currentGAs.add(currentLong);
+    let selectedShort = currentShort;
+    let selectedLong = currentLong;
     // Open on the Automation tab when the button currently triggers one.
-    const initialMode = (gaIdAttr !== undefined || (selectedId === null && currentGAs.size > 0))
+    const initialMode = (currentShort !== null || currentLong !== null)
       ? "automation"
       : "output";
     const roomRow = overlay.querySelector(".roomrow");
@@ -457,7 +509,8 @@ class RensonInputLinkCard extends HTMLElement {
       tabsHost.querySelector(m === "output" ? ".tabout" : ".tabauto").classList.add("active");
       roomRow.style.display = m === "output" ? "" : "none";
       if (m === "output") {
-        selectedGA = null;
+        selectedShort = null;
+        selectedLong = null;
         this._dialogRefresh = null;
         optsHost.innerHTML = renderOpts();
         wireOpts();
@@ -485,46 +538,66 @@ class RensonInputLinkCard extends HTMLElement {
     tabsHost.querySelector(".tabauto").addEventListener("click", () => setMode("automation"));
 
     const gas = this._gas || [];
+    const gaOptions = (slot, includeNew) => {
+      const sel = slot === "short" ? selectedShort : selectedLong;
+      const opts = [];
+      opts.push(`<option value="none" ${sel === null ? "selected" : ""}>${this._t("no_automation")}</option>`);
+      if (includeNew) {
+        opts.push(`<option value="new" ${sel === "new" ? "selected" : ""}>${this._t("new_automation")}</option>`);
+      }
+      for (const g of gas.filter((g) => g.actions)) {
+        const cur = (slot === "short" ? currentShort : currentLong) === g.id;
+        opts.push(`<option value="${g.id}" ${sel === g.id ? "selected" : ""}>${this._esc((g.name || "#" + g.id) + (cur ? " ✓" : ""))}</option>`);
+      }
+      return opts.join("");
+    };
     const renderGAs = () => {
-      const list = gas.filter((g) => g.actions);
+      const warn = currentGAs.size > 1
+        ? `<div class="warn">${this._t("multi_automation_warning")}</div>` : "";
       return `
-        <div class="opt ${typeof selectedGA === "string" ? "sel" : ""}" data-ga="new">
-          <div>
-            <div>${this._t("new_automation")}</div>
-            <input type="text" class="ganame" maxlength="16"
-                   placeholder="${this._t("new_automation_name")}"
-                   style="width:100%;box-sizing:border-box;margin-top:6px;padding:7px 9px;border:1px solid var(--divider-color,#ccc);border-radius:8px;font-size:13px;background:var(--card-background-color,#fff);color:inherit">
-          </div>
-        </div>`
-        + (currentGAs.size > 1
-          ? `<div class="warn">${this._t("multi_automation_warning")}</div>`
-          : "")
-        + (list.map((g) => `
-          <div class="opt ${selectedGA === g.id ? "sel" : ""}" data-ga="${g.id}">
-            <button class="gaedit" data-gaid="${g.id}">${this._t("edit")}</button>
-            <div>
-              <div>${this._esc(g.name || "#" + g.id)}${currentGAs.has(g.id) ? ' <span class="cur">' + this._t("currently_configured") + "</span>" : ""}</div>
-              <div class="dom">${this._esc(this._gaSummary(g))}</div>
-            </div>
-          </div>`).join("")
-        ) || "";
+        <div class="pressrow">
+          <label>${this._t("press_short")}</label>
+          <select class="selslot" data-slot="short">${gaOptions("short", true)}</select>
+          <button class="gaedit" data-slot="short" ${selectedShort === "new" || selectedShort === null ? "disabled style='opacity:.4'" : ""}>${this._t("edit")}</button>
+        </div>
+        ${selectedShort === "new" ? `<input type="text" class="ganame" maxlength="16"
+              placeholder="${this._t("new_automation_name")}"
+              style="width:100%;box-sizing:border-box;margin:2px 0 8px;padding:7px 9px;border:1px solid var(--divider-color,#ccc);border-radius:8px;font-size:13px;background:var(--card-background-color,#fff);color:inherit">` : ""}
+        ${warn}
+        <div class="pressrow">
+          <label>${this._t("press_long")}</label>
+          <select class="selslot" data-slot="long">${gaOptions("long", false)}</select>
+          <button class="gaedit" data-slot="long" ${selectedLong === null ? "disabled style='opacity:.4'" : ""}>${this._t("edit")}</button>
+        </div>`;
     };
     const wireGAs = () => {
-      optsHost.querySelectorAll(".opt").forEach((el) => {
-        el.addEventListener("click", (e) => {
-          if (e.target.tagName === "INPUT") return;
-          if (e.target.closest("button.gaedit")) return;
-          optsHost.querySelectorAll(".opt").forEach((o) => o.classList.remove("sel"));
-          el.classList.add("sel");
-          const v = el.dataset.ga;
-          selectedGA = v === "new" ? "new" : Number(v);
+      optsHost.querySelectorAll("select.selslot").forEach((sel) => {
+        sel.addEventListener("change", () => {
+          const slot = sel.dataset.slot;
+          const v = sel.value;
+          const val = v === "new" ? "new" : (v === "none" ? null : Number(v));
+          if (slot === "short") selectedShort = val;
+          else selectedLong = val;
+          if (slot === "short" && val === "new") {
+            // Re-render so the name input appears, then focus it.
+            optsHost.innerHTML = renderGAs();
+            wireGAs();
+            const inp = optsHost.querySelector(".ganame");
+            if (inp) inp.focus();
+          } else {
+            // Refresh the Edit-button enabled states.
+            optsHost.innerHTML = renderGAs();
+            wireGAs();
+          }
           syncSave();
         });
       });
       optsHost.querySelectorAll("button.gaedit").forEach((b) => {
         b.addEventListener("click", (e) => {
           e.stopPropagation();
-          this._openAutomationEditor(Number(b.dataset.gaid));
+          const slot = b.dataset.slot;
+          const v = slot === "short" ? selectedShort : selectedLong;
+          if (typeof v === "number") this._openAutomationEditor(v);
         });
       });
     };
@@ -539,7 +612,7 @@ class RensonInputLinkCard extends HTMLElement {
     const syncSave = () => {
       // Unlinking an extended input would erase its gateway actions.
       if (mode === "automation") {
-        saveBtn.disabled = extended && !selectedGA;
+        saveBtn.disabled = extended && selectedShort === null && selectedLong === null;
       } else {
         saveBtn.disabled = extended && !selected;
       }
@@ -579,7 +652,7 @@ class RensonInputLinkCard extends HTMLElement {
     overlay.querySelector(".save").addEventListener("click", async () => {
       const serviceData = { entity_id: [entityId] };
       if (mode === "automation") {
-        if (selectedGA === "new") {
+        if (selectedShort === "new") {
           const nameInput = optsHost.querySelector(".ganame");
           const name = nameInput ? nameInput.value.trim() : "";
           const used = new Set((this._gas || []).map((g) => g.id));
@@ -590,8 +663,11 @@ class RensonInputLinkCard extends HTMLElement {
           });
           serviceData.group_action_id = id;
           this._gas = null; // refetch so rows show the new automation
-        } else if (selectedGA !== null) {
-          serviceData.group_action_id = selectedGA;
+        } else if (selectedShort !== null) {
+          serviceData.group_action_id = selectedShort;
+        }
+        if (selectedLong !== null) {
+          serviceData.group_action_id_long = selectedLong;
         }
       } else if (selected) {
         serviceData.output_entity = selected;

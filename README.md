@@ -55,6 +55,10 @@ Setting a temperature on the climate entity writes the setpoint with a preset ex
     output_entity: light.bureau_bureau
   ```
 
+  Automations support short/long press: `group_action_id` runs on a short
+  press, `group_action_id_long` on a long press (>2s hold). Both together
+  write the gateway's combined 8-byte form (`207,<long>,236,0,2,<short>,236,255`).
+
 - `renson_smartliving.set_shutter_timings`: set the travel timers (`timer_up` / `timer_down`, seconds) of a shutter. These drive the gateway's position estimate and the position slider.
 
 ### Gateway automations (group actions)

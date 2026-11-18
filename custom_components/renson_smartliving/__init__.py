@@ -63,7 +63,12 @@ SERVICE_SET_INPUT_LINK_SCHEMA = vol.Schema(
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
         vol.Optional("output_entity"): cv.entity_id,
         vol.Optional("output_id"): int,
-        vol.Optional("group_action_id"): vol.Coerce(int),
+        vol.Optional("group_action_id"): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=255)
+        ),
+        vol.Optional("group_action_id_long"): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=255)
+        ),
         vol.Optional("force"): bool,
     }
 )
@@ -163,6 +168,7 @@ async def _async_set_input_link(call: ServiceCall) -> None:
         call.data.get("output_id"),
     )
     group_action_id = call.data.get("group_action_id")
+    group_action_id_long = call.data.get("group_action_id_long")
     action = 255 if output_id is None else output_id
     for entity_id in call.data[ATTR_ENTITY_ID]:
         coordinator, entity = _resolve_om_entity(call.hass, entity_id)
@@ -188,9 +194,22 @@ async def _async_set_input_link(call: ServiceCall) -> None:
             )
         config: dict[str, Any] = {"id": input_id, "action": action}
         # A group action link uses the extended encoding: action 240 with
-        # basic_actions "2,<group_action_id>" (run group action), the same
-        # encoding the gateway itself writes.
-        if group_action_id is not None:
+        # basic_actions. Short press only keeps the simple "2,<id>" (run
+        # group action on press). Long press uses opcode 207
+        # (the gateway's long-press hold slot). Both together use the 8-byte
+        # combined form the gateway itself writes:
+        #   207,<long>,236,0,2,<short>,236,255
+        # (207 slot = long press, the 236,0,2,N,236,255 tail = on release).
+        if group_action_id_long is not None and group_action_id is not None:
+            config["action"] = 240
+            config["basic_actions"] = (
+                f"207,{group_action_id_long},"
+                f"236,0,2,{group_action_id},236,255"
+            )
+        elif group_action_id_long is not None:
+            config["action"] = 240
+            config["basic_actions"] = f"207,{group_action_id_long}"
+        elif group_action_id is not None:
             config["action"] = 240
             config["basic_actions"] = f"2,{group_action_id}"
         # Covers (screens/shutters) cannot be toggled as a plain output: they
