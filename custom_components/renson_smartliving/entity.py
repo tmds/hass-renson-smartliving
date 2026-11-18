@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -20,7 +21,7 @@ def remove_stale_entities(
     hass: HomeAssistant,
     entry: ConfigEntry,
     domain: str,
-    current_entities: list[OpenMoticsEntity],
+    current_entities: Sequence[OpenMoticsEntity],
 ) -> None:
     """Remove entities that no longer exist on the gateway."""
     ent_reg = er.async_get(hass)
@@ -60,6 +61,9 @@ class OpenMoticsEntity(CoordinatorEntity[OpenMoticsCoordinator]):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
+        registry: dict[str, Any] = self.hass.data.setdefault(DOMAIN, {})
+        entities: dict[str, Any] = registry.setdefault("om_entities", {})
+        entities[self.entity_id] = self
         if self._ws_change_type is not None and self._om_id is not None:
             self.async_on_remove(
                 async_dispatcher_connect(
@@ -81,9 +85,21 @@ class OpenMoticsEntity(CoordinatorEntity[OpenMoticsCoordinator]):
                 updates["area_id"] = area_id
         ent_reg.async_update_entity(self.entity_id, **updates)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Expose the raw OpenMotics id (cards use it to map entity -> id)."""
+        if self._om_id is None:
+            return None
+        return {"openmotics_id": self._om_id}
+
     @callback
     def _handle_om_event(self, *_args: Any) -> None:
         self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        registry = self.hass.data.get(DOMAIN, {})
+        entities: dict[str, Any] = registry.get("om_entities", {})
+        entities.pop(self.entity_id, None)
 
     @property
     def available(self) -> bool:

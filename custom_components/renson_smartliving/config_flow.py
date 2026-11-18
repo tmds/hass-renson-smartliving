@@ -4,11 +4,22 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import callback
 
 from .api import AuthenticationError, OpenMoticsClient
-from .const import CONF_HOST, DOMAIN
+from .const import (
+    CONF_HOST,
+    CONF_MIN_DIM_LEVELS,
+    DOMAIN,
+    parse_min_dim_levels,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,10 +48,72 @@ async def _connect_and_get_details(
         await client.close()
 
 
+def parse_min_dim_levels(raw: Any) -> dict[int, int]:
+    """Parse a "27:12,21:30" style string into {output_id: min_percent}."""
+    result: dict[int, int] = {}
+    if not raw:
+        return result
+    for part in str(raw).split(","):
+        part = part.strip()
+        if ":" not in part:
+            continue
+        oid, _, pct = part.partition(":")
+        try:
+            value = int(pct)
+        except ValueError:
+            continue
+        if 0 < value <= 100:
+            try:
+                result[int(oid)] = value
+            except ValueError:
+                continue
+    return result
+
+
+class OpenMoticsOptionsFlowHandler(OptionsFlow):
+    """Options flow: per-output minimum dim levels."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            raw = user_input.get(CONF_MIN_DIM_LEVELS, "")
+            parsed = parse_min_dim_levels(raw)
+            if raw and not parsed:
+                errors["base"] = "invalid_min_dim"
+            else:
+                return self.async_create_entry(
+                    title="",
+                    data={CONF_MIN_DIM_LEVELS: raw.strip()},
+                )
+        current = self.config_entry.options.get(CONF_MIN_DIM_LEVELS, "")
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_MIN_DIM_LEVELS,
+                    default=current,
+                    description={"suggested_value": current},
+                ): str,
+            }
+        )
+        return self.async_show_form(
+            step_id="init", data_schema=schema, errors=errors
+        )
+
+
 class OpenMoticsConfigFlow(ConfigFlow, domain=DOMAIN):
     """Config flow for OpenMotics gateway."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: ConfigEntry,
+    ) -> OpenMoticsOptionsFlowHandler:
+        """Get the options flow for this handler."""
+        return OpenMoticsOptionsFlowHandler()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

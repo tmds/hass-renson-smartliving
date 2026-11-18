@@ -19,5 +19,19 @@
     "abort": {
       "already_configured": "This gateway is already configured"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Minimum dim levels",
+        "description": "Per-output minimum dim level in percent, so LED drivers never go below their visible floor. Format: output_id:percent, comma separated (e.g. 27:12,21:30). Leave empty to disable.",
+        "data": {
+          "min_dim_levels": "Minimum dim levels"
+        }
+      }
+    },
+    "error": {
+      "invalid_min_dim": "Invalid format. Use output_id:percent pairs separated by commas, e.g. 27:12,21:30."
+    }
   }
 }

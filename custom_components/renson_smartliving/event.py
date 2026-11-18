@@ -9,6 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 if TYPE_CHECKING:
     from . import OpenMoticsConfigEntry
+from .const import DOMAIN
 from .coordinator import EntityNaming, OpenMoticsCoordinator, signal_config_loaded
 from .entity import OpenMoticsEntity, remove_stale_entities
 
@@ -56,6 +57,77 @@ def create_entities(
     return entities
 
 
+def _linked_output(
+    coordinator: OpenMoticsCoordinator, input_id: int
+) -> dict[str, Any] | None:
+    """Describe the output or screen linked to an input, if any."""
+    for inp in coordinator.inputs:
+        if inp.get("id") != input_id:
+            continue
+        action = inp.get("action")
+        if action is None:
+            return None
+        if action == 240:
+            # Extended actions: recognise single-pair shutter encodings
+            # ("103,<shutter>" toggle but also 100/101/102 up/down/stop and
+            # 108/109 up/stop/up, down/stop/down toggles) and the group
+            # action run "2,<group_action_id>".
+            actions = str(inp.get("basic_actions") or "").split(",")
+            if len(actions) == 2 and actions[0] in (
+                "100", "101", "102", "103", "108", "109"
+            ):
+                shutter_id = int(actions[1])
+                for shutter in coordinator.shutters:
+                    if shutter.get("id") == shutter_id:
+                        return {"id": shutter_id, "name": shutter.get("name")}
+                return {"id": shutter_id, "name": None}
+            return None
+        if action >= 240:
+            return None
+        for output in coordinator.outputs:
+            if output.get("id") == action:
+                return {"id": action, "name": output.get("name")}
+        return {"id": action, "name": None}
+    return None
+
+
+def _linked_group_action(
+    coordinator: OpenMoticsCoordinator, input_id: int
+) -> int | None:
+    """Return the group action id an input triggers, if linked as "2,<id>"."""
+    for inp in coordinator.inputs:
+        if inp.get("id") != input_id:
+            continue
+        if inp.get("action") != 240:
+            return None
+        actions = str(inp.get("basic_actions") or "").split(",")
+        if len(actions) == 2 and actions[0] == "2":
+            try:
+                return int(actions[1])
+            except ValueError:
+                return None
+        return None
+    return None
+    return None
+
+
+def _has_extended_actions(inp: dict[str, Any]) -> bool:
+    """True when the input has extended basic actions beyond a simple link.
+
+    Writing a direct output link (or unlinking) erases those extended
+    actions on the gateway: an input has either a direct link OR extended
+    actions, never both. The single shutter toggle "103,<shutter>" is NOT
+    extended: it is a first-class link the card can manage.
+    """
+    action = inp.get("action")
+    if action is None or action < 240:
+        return False
+    actions = str(inp.get("basic_actions") or "").split(",")
+    if len(actions) == 2 and actions[0] == "103":
+        return False
+    return bool(inp.get("basic_actions"))
+
+
 class OpenMoticsEvent(OpenMoticsEntity, EventEntity):
     """An OpenMotics event (input) entity."""
 
@@ -72,6 +144,42 @@ class OpenMoticsEvent(OpenMoticsEntity, EventEntity):
         self._input_id = input_id
         self._ws_change_type = "INPUT_CHANGE"
         self._om_id = input_id
+
+    @property
+    def input_id(self) -> int:
+        """The OpenMotics input id."""
+        return self._input_id
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        attrs: dict[str, Any] = {"openmotics_id": self._input_id}
+        linked = _linked_output(self.coordinator, self._input_id)
+        if linked is not None:
+            attrs["linked_output_id"] = linked["id"]
+            attrs["linked_output_name"] = linked["name"]
+        ga_id = _linked_group_action(self.coordinator, self._input_id)
+        if ga_id is not None:
+            attrs["linked_group_action_id"] = ga_id
+        current = next(
+            (inp for inp in self.coordinator.inputs if inp.get("id") == self._input_id),
+            None,
+        )
+        if current is not None and _has_extended_actions(current):
+            attrs["has_extended_actions"] = True
+            attrs["basic_actions"] = current.get("basic_actions") or ""
+        return attrs or None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        registry: dict[str, Any] = self.hass.data.setdefault(DOMAIN, {})
+        entities: dict[str, Any] = registry.setdefault("event_entities", {})
+        entities[self.entity_id] = self
+
+    async def async_will_remove_from_hass(self) -> None:
+        await super().async_will_remove_from_hass()
+        registry = self.hass.data.get(DOMAIN, {})
+        entities: dict[str, Any] = registry.get("event_entities", {})
+        entities.pop(self.entity_id, None)
 
     @callback
     def _handle_om_event(self, pressed: bool) -> None:

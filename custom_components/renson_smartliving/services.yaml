@@ -1,0 +1,217 @@
+set_thermostat_schedule:
+  name: Set thermostat schedule
+  description: >-
+    Replace the heating schedule of an OpenMotics thermostat for one,
+    several or all days. Setpoints are HH:MM times with a target
+    temperature; the gateway applies the schedule value from that time
+    until the next one.
+  target:
+    entity:
+      integration: renson_smartliving
+      domain: climate
+  fields:
+    days:
+      name: Days
+      description: "Days to update (default: all days). Ignored when week is set."
+      example: ["mon", "tue"]
+      required: false
+      selector:
+        object:
+    setpoints:
+      name: Setpoints
+      description: "List of {time: HH:MM, temperature: x} entries (or use week)."
+      required: false
+      selector:
+        object:
+    week:
+      name: Week
+      description: >-
+        Full week as day-keyed setpoint lists; days not listed keep
+        their schedule. Used to copy a week between thermostats.
+      required: false
+      selector:
+        object:
+
+set_thermostat_config:
+  name: Set thermostat config
+  description: >-
+    Set the away temperature and the lead time (early heating, minutes
+    before a schedule setpoint) of an OpenMotics thermostat.
+  target:
+    entity:
+      integration: renson_smartliving
+      domain: climate
+  fields:
+    away_temperature:
+      name: Away temperature
+      description: Away heating setpoint in degrees Celsius.
+      required: false
+      selector:
+        number:
+          min: 6
+          max: 32
+          step: 0.5
+    lead_time:
+      name: Lead time
+      description: Early heating in minutes before a schedule setpoint.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 360
+          step: 1
+
+set_input_link:
+  name: Set input link
+  description: >-
+    Link an OpenMotics input (button) directly to an output on the
+    gateway, or unlink it. A linked input toggles its output on press,
+    even without Home Assistant running.
+  target:
+    entity:
+      integration: renson_smartliving
+      domain: event
+  fields:
+    output_entity:
+      name: Output entity
+      description: >-
+        OpenMotics light or switch to link the input to. Omit
+        output_entity and output_id to unlink the input.
+      required: false
+      selector:
+        entity:
+          multiple: false
+    group_action_id:
+      name: Group action id
+      description: >-
+        Gateway automation (group action) to trigger on a short press,
+        instead of an output. Takes precedence over output_entity/output_id.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1
+    group_action_id_long:
+      name: Group action id (long press)
+      description: >-
+        Gateway automation to trigger when the button is held down
+        (long press). Combine with group_action_id for a short + long
+        press button; use alone for a long-press-only button.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1
+    output_id:
+      name: Output id
+      description: >-
+        Raw OpenMotics output id to link (advanced). Omit output_entity
+        and output_id to unlink the input.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 239
+          step: 1
+    force:
+      name: Force
+      description: >-
+        Overwrite even when the input has extended gateway actions
+        (timers, group actions, ...). Those actions are erased on the
+        gateway and cannot be restored by unlinking.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+set_shutter_timings:
+  name: Set shutter timings
+  description: >-
+    Set the travel timers of an OpenMotics shutter (screen). timer_up is
+    the number of seconds the screen needs to fully open, timer_down to
+    fully close. These timers drive the gateway's own position estimate
+    and the position slider.
+  target:
+    entity:
+      integration: renson_smartliving
+      domain: cover
+  fields:
+    timer_up:
+      name: Timer up
+      description: Seconds the shutter needs to travel fully open (0-255).
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1
+    timer_down:
+      name: Timer down
+      description: Seconds the shutter needs to travel fully closed (0-255).
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1
+
+get_group_actions:
+  name: Get group actions
+  description: >-
+    Read all gateway automations (group actions) plus the output,
+    shutter and input name maps. Used by the automation editor card.
+  fields: {}
+
+save_group_action:
+  name: Save group action
+  description: >-
+    Create or update a gateway automation (group action). The actions
+    field is the classic gateway bytecode as comma-separated
+    (action_type, action_number) pairs. The list is validated before
+    writing: unsupported opcodes are refused because the gateway
+    silently drops them.
+  fields:
+    id:
+      name: Id
+      description: Group action id (0-31).
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1
+    name:
+      name: Name
+      description: Name shown in the OpenMotics app (max 16 characters).
+      required: false
+      selector:
+        text:
+    actions:
+      name: Actions
+      description: Comma-separated bytecode pairs, e.g. "161,21,240,255".
+      required: false
+      selector:
+        text:
+    show_in_app:
+      name: Show in app
+      description: Show this automation in the OpenMotics app.
+      required: false
+      default: true
+      selector:
+        boolean:
+
+run_group_action:
+  name: Run group action
+  description: Trigger a gateway automation (group action) by id.
+  fields:
+    id:
+      name: Id
+      description: Group action id.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1
