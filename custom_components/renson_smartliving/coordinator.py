@@ -245,6 +245,13 @@ class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "dimmer": status.get("dimmer", 0),
             }
 
+        # Sensor values: without this initial load every sensor stays
+        # unknown after a restart until the gateway pushes a SENSOR_CHANGE.
+        for status in data.get("sensor_status", []):
+            value = status.get("value")
+            if value is not None:
+                self._sensor_values[status["id"]] = value
+
         shutter_status = data.get("shutter_status", {})
         detail = shutter_status.get("detail", {})
         # REST response uses string keys; convert to int to match event IDs.

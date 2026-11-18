@@ -277,6 +277,10 @@ class OpenMoticsClient:
         data = await self.get("/get_output_status")
         return cast(list[dict[str, Any]], data.get("status", []))
 
+    async def get_sensor_status(self) -> list[dict[str, Any]]:
+        data = await self.get("/get_sensor_status")
+        return cast(list[dict[str, Any]], data.get("status", []))
+
     async def get_shutter_status(self) -> dict[str, Any]:
         return await self.get("/get_shutter_status")
 
