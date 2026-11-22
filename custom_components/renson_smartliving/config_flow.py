@@ -48,28 +48,6 @@ async def _connect_and_get_details(
         await client.close()
 
 
-def parse_min_dim_levels(raw: Any) -> dict[int, int]:
-    """Parse a "27:12,21:30" style string into {output_id: min_percent}."""
-    result: dict[int, int] = {}
-    if not raw:
-        return result
-    for part in str(raw).split(","):
-        part = part.strip()
-        if ":" not in part:
-            continue
-        oid, _, pct = part.partition(":")
-        try:
-            value = int(pct)
-        except ValueError:
-            continue
-        if 0 < value <= 100:
-            try:
-                result[int(oid)] = value
-            except ValueError:
-                continue
-    return result
-
-
 class OpenMoticsOptionsFlowHandler(OptionsFlow):
     """Options flow: per-output minimum dim levels."""
 
@@ -129,7 +107,8 @@ class OpenMoticsConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected error during config flow")
                 errors["base"] = "cannot_connect"
             else:
-                # MAC address as unique_id prevents duplicate entries for the same gateway.
+                # MAC address as unique_id prevents duplicate entries
+                # for the same gateway.
                 mac = platform_details.get("mac_address", "")
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()

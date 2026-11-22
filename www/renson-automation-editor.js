@@ -12,7 +12,7 @@
  *   type: custom:renson-automation-editor
  *   title: (optional heading)
  */
-import { t } from "./renson-i18n.js?v=9";
+import { t } from "./renson-i18n.js?v=15";
 
 /* ------------------------------------------------------------------ */
 /* Bytecode codec (mirrors gateway GroupActionMapper, fw 3.9.9)        */
@@ -54,6 +54,14 @@ function encodeStep(s) {
       if (s.op === "down") return [101, s.id];
       if (s.op === "stop") return [102, s.id];
       if (s.op === "toggle") return [103, s.id];
+      if (s.op === "group_up") return [104, s.id];
+      if (s.op === "group_down") return [105, s.id];
+      if (s.op === "group_stop") return [106, s.id];
+      if (s.op === "group_toggle") return [107, s.id];
+      if (s.op === "up_stop_up") return [108, s.id];
+      if (s.op === "down_stop_down") return [109, s.id];
+      if (s.op === "group_up_stop_up") return [110, s.id];
+      if (s.op === "group_down_stop_down") return [111, s.id];
       return null;
     case "if": return [240, 0];
     case "and": return [240, 1];
@@ -116,6 +124,14 @@ function decode(pairs) {
     else if (a === 101) s = { kind: "shutter", op: "down", id: n };
     else if (a === 102) s = { kind: "shutter", op: "stop", id: n };
     else if (a === 103) s = { kind: "shutter", op: "toggle", id: n };
+    else if (a === 104) s = { kind: "shutter", op: "group_up", id: n };
+    else if (a === 105) s = { kind: "shutter", op: "group_down", id: n };
+    else if (a === 106) s = { kind: "shutter", op: "group_stop", id: n };
+    else if (a === 107) s = { kind: "shutter", op: "group_toggle", id: n };
+    else if (a === 108) s = { kind: "shutter", op: "up_stop_up", id: n };
+    else if (a === 109) s = { kind: "shutter", op: "down_stop_down", id: n };
+    else if (a === 110) s = { kind: "shutter", op: "group_up_stop_up", id: n };
+    else if (a === 111) s = { kind: "shutter", op: "group_down_stop_down", id: n };
     else if (a === 243) s = { kind: "cond", what: "output_on", id: n };
     else if (a === 244) s = { kind: "cond", what: "output_off", id: n };
     else if (a === 241) s = { kind: "cond", what: "input_on", id: n };
@@ -246,8 +262,12 @@ class RensonAutomationEditor extends HTMLElement {
           over: s.overrule ? t("timer_overrule") : t("timer_keep"),
         });
         return "?";
-      case "shutter":
-        return t("shutter_" + s.op, { name: this._devName(this._shutters, s.id) });
+      case "shutter": {
+        const group = s.op.startsWith("group_");
+        const base = group ? s.op.slice(6) : s.op;
+        const name = group ? "#" + s.id : this._devName(this._shutters, s.id);
+        return t("shutter_" + base, { name });
+      }
       case "if": return t("kw_if");
       case "and": return t("kw_and");
       case "or": return t("kw_or");
@@ -300,7 +320,8 @@ class RensonAutomationEditor extends HTMLElement {
 
   _hasUnsupported(ga) {
     return (ga.actions ? ga.actions.split(",").map(Number) : []).some(
-      (a, i) => i % 2 === 0 && ![2, 68, 69, 100, 101, 102, 103, 116, 117,
+      (a, i) => i % 2 === 0 && ![2, 68, 69, 100, 101, 102, 103, 104, 105,
+        106, 107, 108, 109, 110, 111, 116, 117,
         160, 161, 162, 163, 164, 165, 166, 169, 170, 171, 172, 173,
         176, 177, 178, 179, 180, 181, 182, 183, 184,
         185, 186, 187, 188, 189, 190, 191, 192, 193, 194,

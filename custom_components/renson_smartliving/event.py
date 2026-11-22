@@ -9,7 +9,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 if TYPE_CHECKING:
     from . import OpenMoticsConfigEntry
-from .const import DOMAIN
 from .coordinator import EntityNaming, OpenMoticsCoordinator, signal_config_loaded
 from .entity import OpenMoticsEntity, remove_stale_entities
 
@@ -108,7 +107,6 @@ def _linked_group_action(
                 return None
         return None
     return None
-    return None
 
 
 def _has_extended_actions(inp: dict[str, Any]) -> bool:
@@ -116,14 +114,18 @@ def _has_extended_actions(inp: dict[str, Any]) -> bool:
 
     Writing a direct output link (or unlinking) erases those extended
     actions on the gateway: an input has either a direct link OR extended
-    actions, never both. The single shutter toggle "103,<shutter>" is NOT
-    extended: it is a first-class link the card can manage.
+    actions, never both. Single-pair shutter encodings ("103,<shutter>"
+    toggle but also 100/101/102 up/down/stop and 108/109 up/stop/up,
+    down/stop/down) are NOT extended: they are first-class links the
+    card can manage.
     """
     action = inp.get("action")
     if action is None or action < 240:
         return False
     actions = str(inp.get("basic_actions") or "").split(",")
-    if len(actions) == 2 and actions[0] == "103":
+    if len(actions) == 2 and actions[0] in (
+        "100", "101", "102", "103", "108", "109"
+    ):
         return False
     return bool(inp.get("basic_actions"))
 
@@ -169,17 +171,6 @@ class OpenMoticsEvent(OpenMoticsEntity, EventEntity):
             attrs["basic_actions"] = current.get("basic_actions") or ""
         return attrs or None
 
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        registry: dict[str, Any] = self.hass.data.setdefault(DOMAIN, {})
-        entities: dict[str, Any] = registry.setdefault("event_entities", {})
-        entities[self.entity_id] = self
-
-    async def async_will_remove_from_hass(self) -> None:
-        await super().async_will_remove_from_hass()
-        registry = self.hass.data.get(DOMAIN, {})
-        entities: dict[str, Any] = registry.get("event_entities", {})
-        entities.pop(self.entity_id, None)
 
     @callback
     def _handle_om_event(self, pressed: bool) -> None:

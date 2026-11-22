@@ -102,7 +102,15 @@ class SyncLoop:
                     self._set_available(False)
                 elapsed = time.monotonic() - started
                 remaining = max(0, self._backoff - elapsed)
-                if isinstance(exc, (ConnectionError, TimeoutError, OpenMoticsError, aiohttp.ClientError)):
+                if isinstance(
+                    exc,
+                    (
+                        ConnectionError,
+                        TimeoutError,
+                        OpenMoticsError,
+                        aiohttp.ClientError,
+                    ),
+                ):
                     reason = str(exc) or type(exc).__name__
                     _LOGGER.error(
                         "Sync failed for %s: %s",

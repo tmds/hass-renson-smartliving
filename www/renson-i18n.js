@@ -4,7 +4,7 @@
  * The language follows hass.locale.language (e.g. "nl", "en-US");
  * anything unknown falls back to English. Import it from the cards:
  *
- *   import { t, dayLabels } from "./renson-i18n.js?v=9";
+ *   import { t, dayLabels } from "./renson-i18n.js?v=15";
  *
  * Bump the ?v= in every importing card when this file changes.
  */
@@ -115,6 +115,14 @@ const STRINGS = {
     shutter_down: "{name} down",
     shutter_stop: "{name} stop",
     shutter_toggle: "{name} up/stop/down",
+    shutter_group_up: "Shutter group {name} up",
+    shutter_group_down: "Shutter group {name} down",
+    shutter_group_stop: "Shutter group {name} stop",
+    shutter_group_toggle: "Shutter group {name} up/stop/down",
+    shutter_up_stop_up: "{name} up/stop/up",
+    shutter_down_stop_down: "{name} down/stop/down",
+    shutter_group_up_stop_up: "Shutter group {name} up/stop/up",
+    shutter_group_down_stop_down: "Shutter group {name} down/stop/down",
     kw_if: "IF",
     kw_and: "AND",
     kw_or: "OR",
@@ -244,6 +252,14 @@ const STRINGS = {
     shutter_down: "{name} omlaag",
     shutter_stop: "{name} stop",
     shutter_toggle: "{name} omhoog/stop/omlaag",
+    shutter_group_up: "Schermgroep {name} omhoog",
+    shutter_group_down: "Schermgroep {name} omlaag",
+    shutter_group_stop: "Schermgroep {name} stop",
+    shutter_group_toggle: "Schermgroep {name} omhoog/stop/omlaag",
+    shutter_up_stop_up: "{name} omhoog/stop/omhoog",
+    shutter_down_stop_down: "{name} omlaag/stop/omlaag",
+    shutter_group_up_stop_up: "Schermgroep {name} omhoog/stop/omhoog",
+    shutter_group_down_stop_down: "Schermgroep {name} omlaag/stop/omlaag",
     kw_if: "ALS",
     kw_and: "EN",
     kw_or: "OF",
