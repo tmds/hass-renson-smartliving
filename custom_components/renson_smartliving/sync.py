@@ -305,7 +305,7 @@ class SyncLoop:
             ) from None
 
     async def _active_phase(self, ws: aiohttp.ClientWebSocketResponse) -> None:
-        _LOGGER.info("Synchronizing state with %s", self._client.host)
+        _LOGGER.info("Connected and handling events from %s", self._client.host)
         async for msg in ws:
             if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
                 event = msg.json()
