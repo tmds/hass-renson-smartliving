@@ -11,7 +11,7 @@
  *   type: custom:renson-smartliving-thermostat-config-card
  *   entity: climate.praktijk
  */
-import { t, esc, dayLabels, dayLabel } from "./renson-smartliving-common.js?v=16";
+import { t, esc, shortName, dayLabels, dayLabel } from "./renson-smartliving-common.js";
 
 class RensonThermostatConfigCard extends HTMLElement {
   static getStubConfig() {
@@ -139,14 +139,6 @@ class RensonThermostatConfigCard extends HTMLElement {
     const a = stops[seg], b = stops[seg + 1];
     const c = a.map((v, i) => Math.round(v + (b[i] - v) * f));
     return `rgb(${c[0]},${c[1]},${c[2]})`;
-  }
-
-  _roomName(entity) {
-    const name = entity.attributes && entity.attributes.friendly_name
-      ? entity.attributes.friendly_name : entity.entity_id;
-    const parts = String(name).split(") ");
-    const last = parts[parts.length - 1].trim();
-    return last.charAt(0).toUpperCase() + last.slice(1);
   }
 
   _nowPct() {
@@ -493,7 +485,7 @@ class RensonThermostatConfigCard extends HTMLElement {
       <ha-card>
         <div class="head">
           <div>
-            <div class="name">${esc(this._roomName(entity))}</div>
+            <div class="name">${esc(shortName(this._hass, this._config.entity))}</div>
             <div class="room">${this._t("weekly_schedule")}</div>
           </div>
           <div class="now">

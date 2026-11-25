@@ -1,12 +1,8 @@
 /**
- * Shared i18n strings for the Renson Smart Living custom cards.
+ * Shared utilities and i18n strings for the Renson Smart Living custom cards.
  *
  * The language follows hass.locale.language (e.g. "nl", "en-US");
- * anything unknown falls back to English. Import it from the cards:
- *
- *   import { t, dayLabels } from "./renson-smartliving-common.js?v=16";
- *
- * Bump the ?v= in every importing card when this file changes.
+ * anything unknown falls back to English.
  */
 
 const STRINGS = {
@@ -301,6 +297,13 @@ export function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
+}
+
+export function shortName(hass, entityId) {
+  const st = hass && hass.states[entityId];
+  if (!st) return entityId;
+  const raw = st.attributes.friendly_name || entityId;
+  return raw.includes(") ") ? raw.split(") ").slice(1).join(") ") : raw;
 }
 
 export function normLang(lang) {

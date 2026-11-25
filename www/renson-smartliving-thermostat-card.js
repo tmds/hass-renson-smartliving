@@ -8,7 +8,7 @@
  *   type: custom:renson-smartliving-thermostat-card
  *   entity: climate.praktijk
  */
-import { t } from "./renson-smartliving-common.js?v=16";
+import { t, shortName } from "./renson-smartliving-common.js";
 
 class RensonThermostatCard extends HTMLElement {
   static getStubConfig() {
@@ -43,13 +43,6 @@ class RensonThermostatCard extends HTMLElement {
     return this._hass.states[this._config.entity] || null;
   }
 
-  _roomName(entity) {
-    const name = entity.attributes && entity.attributes.friendly_name
-      ? entity.attributes.friendly_name : entity.entity_id;
-    const parts = String(name).split(") ");
-    const last = parts[parts.length - 1].trim();
-    return last.charAt(0).toUpperCase() + last.slice(1);
-  }
 
   _fmtTemp(t) {
     return t === undefined || t === null ? "?" : Number(t).toFixed(1).replace(/\.0$/, "");
@@ -239,7 +232,7 @@ class RensonThermostatCard extends HTMLElement {
     }
     const attrs = entity.attributes || {};
     this.renderRoot.querySelector(".name").textContent =
-      this._roomName(entity);
+      shortName(this._hass, this._config.entity);
     this.renderRoot.querySelector(".sub").textContent =
       (attrs.hvac_action || entity.state) === "heating" ? "Heating" : "Idle";
     this.renderRoot.querySelector(".cur").textContent =

@@ -12,7 +12,7 @@
  *
  * Use in a panel view (type: panel) so the grid spans the full width.
  */
-import { t, esc } from "./renson-smartliving-common.js?v=16";
+import { t, esc, shortName } from "./renson-smartliving-common.js";
 
 class RensonRoomsGrid extends HTMLElement {
   static getStubConfig() {
@@ -58,11 +58,6 @@ class RensonRoomsGrid extends HTMLElement {
   _fmtTemp(t) {
     return t === undefined || t === null
       ? "?" : Number(t).toFixed(1).replace(/\.0$/, "");
-  }
-
-  _shortName(raw) {
-    raw = raw || "";
-    return raw.includes(") ") ? raw.split(") ").slice(1).join(") ") : raw;
   }
 
   _color(temp) {
@@ -135,7 +130,7 @@ class RensonRoomsGrid extends HTMLElement {
       const on = s && s.state === "on";
       chips.push(
         `<button class="chip light ${on ? "on" : ""}" data-entity="${eid}" data-domain="light" ` +
-        `data-name="${esc(this._shortName(s && s.attributes.friendly_name) || eid)}">` +
+        `data-name="${esc(shortName(this._hass, eid))}">` +
         `<ha-icon icon="mdi:lightbulb"></ha-icon></button>`
       );
     }
@@ -148,7 +143,7 @@ class RensonRoomsGrid extends HTMLElement {
         : "";
       chips.push(
         `<button class="chip cover ${open ? "on" : ""}" data-entity="${eid}" data-domain="cover" ` +
-        `data-name="${esc(this._shortName(s && s.attributes.friendly_name) || eid)}">` +
+        `data-name="${esc(shortName(this._hass, eid))}">` +
         `<ha-icon icon="mdi:window-shutter"></ha-icon>${posTag}</button>`
       );
     }

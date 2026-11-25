@@ -11,7 +11,7 @@
  *   climate: climate.badkamer_beneden
  *   lights: [light.x, light.y]
  */
-import { esc } from "./renson-smartliving-common.js?v=16";
+import { esc, shortName } from "./renson-smartliving-common.js";
 
 class RensonRoomCard extends HTMLElement {
   static getStubConfig() {
@@ -81,26 +81,18 @@ class RensonRoomCard extends HTMLElement {
     for (const eid of lights) {
       const s = this._hass.states[eid];
       const on = s && s.state === "on";
-      const raw = (s && s.attributes.friendly_name) || eid;
-      const name = raw.includes(") ")
-        ? raw.split(") ").slice(1).join(") ")
-        : raw;
       chips.push(
         `<button class="chip light ${on ? "on" : ""}" data-entity="${eid}" data-domain="light" ` +
-        `data-name="${esc(name)}">` +
+        `data-name="${esc(shortName(this._hass, eid))}">` +
         `<ha-icon icon="mdi:lightbulb"></ha-icon></button>`
       );
     }
     for (const eid of covers) {
       const s = this._hass.states[eid];
       const open = s && s.state === "open";
-      const raw = (s && s.attributes.friendly_name) || eid;
-      const name = raw.includes(") ")
-        ? raw.split(") ").slice(1).join(") ")
-        : raw;
       chips.push(
         `<button class="chip cover ${open ? "on" : ""}" data-entity="${eid}" data-domain="cover" ` +
-        `data-name="${esc(name)}">` +
+        `data-name="${esc(shortName(this._hass, eid))}">` +
         `<ha-icon icon="mdi:window-shutter"></ha-icon></button>`
       );
     }

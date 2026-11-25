@@ -8,7 +8,7 @@
  *   type: custom:renson-smartliving-screen-card
  *   entity: cover.keuken_screen_keuken
  */
-import { t } from "./renson-smartliving-common.js?v=16";
+import { t } from "./renson-smartliving-common.js";
 
 class RensonScreenCard extends HTMLElement {
   static getStubConfig() {
