@@ -11,35 +11,7 @@ from custom_components.renson_smartliving.api import OpenMoticsClient
 from custom_components.renson_smartliving.const import DOMAIN
 from custom_components.renson_smartliving.coordinator import OpenMoticsCoordinator
 from custom_components.renson_smartliving.cover import OpenMoticsCover
-from tests.fixtures import make_naming
-
-
-def _mock_response(
-    status: int = 200, json_data: dict | list | None = None
-):
-    resp = AsyncMock()
-    resp.status = status
-    text = "" if json_data is None else json.dumps(json_data)
-    resp.text = AsyncMock(return_value=text)
-    ctx = AsyncMock()
-    ctx.__aenter__ = AsyncMock(return_value=resp)
-    ctx.__aexit__ = AsyncMock(return_value=False)
-    return ctx
-
-
-# -- API --
-
-
-@pytest.fixture
-def client():
-    return OpenMoticsClient("gw.local", "user", "pass")
-
-
-@pytest.fixture
-def mock_session(client: OpenMoticsClient):
-    session = MagicMock()
-    with patch.object(client, "_get_session", return_value=session):
-        yield session
+from tests.fixtures import make_naming, mock_response
 
 
 async def test_set_shutter_configuration_sends_form_param(
@@ -47,7 +19,7 @@ async def test_set_shutter_configuration_sends_form_param(
 ) -> None:
     """set_shutter_configuration posts the config as a query param."""
     client._token = "tok"  # noqa: SLF001, S105
-    mock_session.request.return_value = _mock_response(200, {"success": True})
+    mock_session.request.return_value = mock_response(200, {"success": True})
 
     await client.set_shutter_configuration({"id": 4, "timer_up": 28})
 

@@ -11,36 +11,7 @@ from custom_components.renson_smartliving.api import (
     OpenMoticsClient,
     OpenMoticsError,
 )
-
-
-def _mock_response(status: int = 200, json_data: dict | list | None = None, text: str | None = None):
-    """Create a mock aiohttp response usable as an async context manager."""
-    import json as jsonlib
-
-    resp = AsyncMock()
-    resp.status = status
-    if text is None:
-        text = "" if json_data is None else jsonlib.dumps(json_data)
-    resp.text = AsyncMock(return_value=text)
-    resp.json = AsyncMock(return_value=json_data if json_data is not None else {})
-    ctx = AsyncMock()
-    ctx.__aenter__ = AsyncMock(return_value=resp)
-    ctx.__aexit__ = AsyncMock(return_value=False)
-    return ctx
-
-
-@pytest.fixture
-def client():
-    return OpenMoticsClient("gw.local", "user", "pass")
-
-
-@pytest.fixture
-def mock_session(client: OpenMoticsClient):
-    """Create a mock aiohttp session and patch it onto the client."""
-    session = MagicMock()
-    session.closed = False
-    with patch.object(client, "_get_session", return_value=session):
-        yield session
+from tests.fixtures import mock_response
 
 
 async def test_request_auto_login(
@@ -50,10 +21,10 @@ async def test_request_auto_login(
     assert client._token is None
 
     mock_session.get = MagicMock(
-        return_value=_mock_response(200, {"success": True, "token": "tok123"})
+        return_value=mock_response(200, {"success": True, "token": "tok123"})
     )
     mock_session.request = MagicMock(
-        return_value=_mock_response(200, {"success": True, "value": 42})
+        return_value=mock_response(200, {"success": True, "value": 42})
     )
 
     result = await client.get("/test")
@@ -70,9 +41,9 @@ async def test_request_retry_on_401(
     """On 401, re-authenticates and retries the request."""
     client._token = "expired"
 
-    first_resp = _mock_response(401)
-    retry_resp = _mock_response(200, {"success": True, "answer": "ok"})
-    login_resp = _mock_response(200, {"success": True, "token": "fresh"})
+    first_resp = mock_response(401)
+    retry_resp = mock_response(200, {"success": True, "answer": "ok"})
+    login_resp = mock_response(200, {"success": True, "token": "fresh"})
 
     call_count = 0
 
@@ -98,7 +69,7 @@ async def test_request_raises_on_login_failure(
 ) -> None:
     """Login with success=false raises AuthenticationError."""
     mock_session.get = MagicMock(
-        return_value=_mock_response(200, {"success": False, "msg": "Bad creds"})
+        return_value=mock_response(200, {"success": False, "msg": "Bad creds"})
     )
 
     with pytest.raises(AuthenticationError, match="Bad creds"):
@@ -111,7 +82,7 @@ async def test_request_raises_on_http_error(
     """Non-401 HTTP error raises OpenMoticsError with status."""
     client._token = "valid"
 
-    mock_session.request = MagicMock(return_value=_mock_response(500, {}))
+    mock_session.request = MagicMock(return_value=mock_response(500, {}))
 
     with pytest.raises(OpenMoticsError, match="HTTP 500") as exc_info:
         await client.get("/broken")
@@ -137,7 +108,7 @@ async def test_request_retries_on_transient_error(
     """Transient connection errors are retried with backoff."""
     client._token = "valid"
 
-    ok_resp = _mock_response(200, {"success": True, "value": 1})
+    ok_resp = mock_response(200, {"success": True, "value": 1})
 
     call_count = 0
 
@@ -185,7 +156,7 @@ async def test_request_no_retry_on_non_transient_error(
     """Non-transient errors (e.g. HTTP 500) are not retried."""
     client._token = "valid"
 
-    mock_session.request = MagicMock(return_value=_mock_response(500, {}))
+    mock_session.request = MagicMock(return_value=mock_response(500, {}))
 
     with pytest.raises(OpenMoticsError, match="HTTP 500"):
         await client.get("/broken")
@@ -239,7 +210,7 @@ async def test_read_response_raw_list(
     thermostats = [{"id": 0, "name": "Living"}]
 
     mock_session.request = MagicMock(
-        return_value=_mock_response(200, json_data=thermostats)
+        return_value=mock_response(200, json_data=thermostats)
     )
 
     result = await client.get_thermostat_control()
@@ -253,7 +224,7 @@ async def test_read_response_empty_body(
     client._token = "valid"
 
     mock_session.request = MagicMock(
-        return_value=_mock_response(200, json_data=None, text="")
+        return_value=mock_response(200, json_data=None, text="")
     )
 
     result = await client.set_thermostat_control(0, {"setpoint": 20.0})

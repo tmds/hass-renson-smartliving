@@ -1,8 +1,29 @@
-"""Test data constants for Renson Smart Living tests."""
+"""Test data and helpers for Renson Smart Living tests."""
 
 from __future__ import annotations
 
+import json
+from unittest.mock import AsyncMock
+
 from custom_components.renson_smartliving.coordinator import EntityNaming
+
+
+def mock_response(
+    status: int = 200,
+    json_data: dict | list | None = None,
+    text: str | None = None,
+):
+    """Create a mock aiohttp response usable as an async context manager."""
+    resp = AsyncMock()
+    resp.status = status
+    if text is None:
+        text = "" if json_data is None else json.dumps(json_data)
+    resp.text = AsyncMock(return_value=text)
+    resp.json = AsyncMock(return_value=json_data if json_data is not None else {})
+    ctx = AsyncMock()
+    ctx.__aenter__ = AsyncMock(return_value=resp)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    return ctx
 
 
 def make_naming(

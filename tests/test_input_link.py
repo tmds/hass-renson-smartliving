@@ -10,37 +10,10 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from custom_components.renson_smartliving.api import OpenMoticsClient
 from custom_components.renson_smartliving.const import DOMAIN
 from custom_components.renson_smartliving.event import OpenMoticsEvent, _linked_output
-
-
-def _mock_response(
-    status: int = 200, json_data: dict | list | None = None, text: str | None = None
-):
-    """Create a mock aiohttp response usable as an async context manager."""
-    resp = AsyncMock()
-    resp.status = status
-    if text is None:
-        text = "" if json_data is None else json.dumps(json_data)
-    resp.text = AsyncMock(return_value=text)
-    ctx = AsyncMock()
-    ctx.__aenter__ = AsyncMock(return_value=resp)
-    ctx.__aexit__ = AsyncMock(return_value=False)
-    return ctx
+from tests.fixtures import mock_response
 
 
 # -- API --
-
-
-@pytest.fixture
-def client():
-    return OpenMoticsClient("gw.local", "user", "pass")
-
-
-@pytest.fixture
-def mock_session(client: OpenMoticsClient):
-    """Create a mock aiohttp session and patch it onto the client."""
-    session = MagicMock()
-    with patch.object(client, "_get_session", return_value=session):
-        yield session
 
 
 async def test_set_input_configuration_sends_form_param(
@@ -48,7 +21,7 @@ async def test_set_input_configuration_sends_form_param(
 ) -> None:
     """set_input_configuration posts the config as a query param (legacy API)."""
     client._token = "tok"  # noqa: SLF001, S105
-    mock_session.request.return_value = _mock_response(200, {"success": True})
+    mock_session.request.return_value = mock_response(200, {"success": True})
 
     await client.set_input_configuration({"id": 0, "action": 23})
 

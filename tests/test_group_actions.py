@@ -15,36 +15,7 @@ from custom_components.renson_smartliving.group_actions import (
     parse_actions,
     validate_actions,
 )
-
-
-def _mock_response(
-    status: int = 200, json_data: dict | list | None = None, text: str | None = None
-):
-    """Create a mock aiohttp response usable as an async context manager."""
-    resp = AsyncMock()
-    resp.status = status
-    if text is None:
-        text = "" if json_data is None else json.dumps(json_data)
-    resp.text = AsyncMock(return_value=text)
-    ctx = AsyncMock()
-    ctx.__aenter__ = AsyncMock(return_value=resp)
-    ctx.__aexit__ = AsyncMock(return_value=False)
-    return ctx
-
-
-# -- API --
-
-
-@pytest.fixture
-def client():
-    return OpenMoticsClient("gw.local", "user", "pass")
-
-
-@pytest.fixture
-def mock_session(client: OpenMoticsClient):
-    session = MagicMock()
-    with patch.object(client, "_get_session", return_value=session):
-        yield session
+from tests.fixtures import mock_response
 
 
 async def test_set_group_action_configuration_sends_form_param(
@@ -52,7 +23,7 @@ async def test_set_group_action_configuration_sends_form_param(
 ) -> None:
     """set_group_action_configuration posts the config as a form param."""
     client._token = "tok"  # noqa: SLF001, S105
-    mock_session.request.return_value = _mock_response(200, {"success": True})
+    mock_session.request.return_value = mock_response(200, {"success": True})
 
     config = {"id": 5, "name": "test", "actions": "161,21"}
     await client.set_group_action_configuration(config)
