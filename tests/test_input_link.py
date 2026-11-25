@@ -41,16 +41,29 @@ def _event_entity(coord, input_id: int) -> OpenMoticsEvent:
     return OpenMoticsEvent(coordinator=coord, naming=naming, input_id=input_id)
 
 
+def _register_entity(coordinator, entity_id: str, om_id: int) -> None:
+    """Register a mock entity so _find_entity_id can find it."""
+    registry = coordinator.hass.data.setdefault(DOMAIN, {})
+    entities = registry.setdefault("om_entities", {})
+    entity = MagicMock()
+    entity._om_id = om_id
+    entities[entity_id] = entity
+    by_om_id = registry.setdefault("om_id_to_entity", {})
+    domain = entity_id.split(".")[0]
+    by_om_id[(domain, om_id)] = entity_id
+
+
 def test_linked_output_direct_link(coordinator) -> None:
     coordinator.inputs = [{"id": 5, "name": "btn", "action": 23}]
     coordinator.outputs = [{"id": 23, "name": "tafel licht"}]
-    assert _linked_output(coordinator, 5) == {"id": 23, "name": "tafel licht"}
+    _register_entity(coordinator, "light.tafel_licht", 23)
+    assert _linked_output(coordinator, 5) == "light.tafel_licht"
 
 
 def test_linked_output_unknown_output(coordinator) -> None:
     coordinator.inputs = [{"id": 5, "name": "btn", "action": 99}]
     coordinator.outputs = []
-    assert _linked_output(coordinator, 5) == {"id": 99, "name": None}
+    assert _linked_output(coordinator, 5) is None
 
 
 def test_linked_output_unlinked(coordinator) -> None:
@@ -67,18 +80,17 @@ def test_linked_output_missing_input(coordinator) -> None:
 def test_event_entity_attributes(coordinator) -> None:
     coordinator.inputs = [{"id": 5, "name": "btn", "action": 23}]
     coordinator.outputs = [{"id": 23, "name": "tafel licht"}]
+    _register_entity(coordinator, "light.tafel_licht", 23)
     entity = _event_entity(coordinator, 5)
     assert entity.extra_state_attributes == {
-        "openmotics_id": 5,
-        "linked_output_id": 23,
-        "linked_output_name": "tafel licht",
+        "linked_output": "light.tafel_licht",
     }
 
 
 def test_event_entity_attributes_unlinked(coordinator) -> None:
     coordinator.inputs = [{"id": 5, "name": "btn", "action": 255}]
     entity = _event_entity(coordinator, 5)
-    assert entity.extra_state_attributes == {"openmotics_id": 5}
+    assert entity.extra_state_attributes is None
 
 
 # -- Service --
@@ -195,7 +207,6 @@ def test_event_entity_attributes_extended_actions(coordinator) -> None:
     ]
     entity = _event_entity(coordinator, 5)
     assert entity.extra_state_attributes == {
-        "openmotics_id": 5,
         "linked_group_action_id": 1,
         "has_extended_actions": True,
         "basic_actions": "2,1",
@@ -207,7 +218,8 @@ def test_linked_output_shutter_toggle(coordinator) -> None:
         {"id": 21, "name": "btn", "action": 240, "basic_actions": "103,22"}
     ]
     coordinator.shutters = [{"id": 22, "name": "bureau screen"}]
-    assert _linked_output(coordinator, 21) == {"id": 22, "name": "bureau screen"}
+    _register_entity(coordinator, "cover.bureau_screen", 22)
+    assert _linked_output(coordinator, 21) == "cover.bureau_screen"
 
 
 def test_linked_output_shutter_directional_toggles(coordinator) -> None:
@@ -218,9 +230,10 @@ def test_linked_output_shutter_directional_toggles(coordinator) -> None:
         {"id": 14, "name": "btn", "action": 240, "basic_actions": "100,4"},
     ]
     coordinator.shutters = [{"id": 4, "name": "keuken screen"}]
-    assert _linked_output(coordinator, 10) == {"id": 4, "name": "keuken screen"}
-    assert _linked_output(coordinator, 13) == {"id": 4, "name": "keuken screen"}
-    assert _linked_output(coordinator, 14) == {"id": 4, "name": "keuken screen"}
+    _register_entity(coordinator, "cover.keuken_screen", 4)
+    assert _linked_output(coordinator, 10) == "cover.keuken_screen"
+    assert _linked_output(coordinator, 13) == "cover.keuken_screen"
+    assert _linked_output(coordinator, 14) == "cover.keuken_screen"
 
 
 def test_linked_output_shutter_unknown(coordinator) -> None:
@@ -228,7 +241,7 @@ def test_linked_output_shutter_unknown(coordinator) -> None:
         {"id": 21, "name": "btn", "action": 240, "basic_actions": "103,99"}
     ]
     coordinator.shutters = []
-    assert _linked_output(coordinator, 21) == {"id": 99, "name": None}
+    assert _linked_output(coordinator, 21) is None
 
 
 def test_has_extended_actions_false_cases(coordinator) -> None:

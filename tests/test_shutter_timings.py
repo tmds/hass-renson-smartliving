@@ -45,7 +45,7 @@ def test_cover_exposes_timer_attributes(coordinator: OpenMoticsCoordinator) -> N
         {"id": 4, "name": "screen keuken", "timer_up": 28, "timer_down": 27}
     ]
     cover = _cover(coordinator)
-    assert cover.extra_state_attributes == {"openmotics_id": 4, "timer_up": 28, "timer_down": 27}
+    assert cover.extra_state_attributes == {"timer_up": 28, "timer_down": 27}
 
 
 def test_cover_timer_attributes_without_config(
@@ -53,7 +53,7 @@ def test_cover_timer_attributes_without_config(
 ) -> None:
     coordinator.shutters = []
     cover = _cover(coordinator)
-    assert cover.extra_state_attributes == {"openmotics_id": 4, "timer_up": None, "timer_down": None}
+    assert cover.extra_state_attributes == {"timer_up": None, "timer_down": None}
 
 
 # -- Service --

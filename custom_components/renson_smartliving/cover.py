@@ -109,15 +109,12 @@ class OpenMoticsCover(OpenMoticsEntity, CoverEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose the OpenMotics id and travel timers for UI cards."""
+        """Expose travel timers for UI cards."""
         config = self._shutter_config() or {}
-        attrs: dict[str, Any] = {
+        return {
             "timer_up": config.get("timer_up"),
             "timer_down": config.get("timer_down"),
         }
-        if self._om_id is not None:
-            attrs["openmotics_id"] = self._om_id
-        return attrs
 
     def _shutter_config(self) -> dict[str, Any] | None:
         for shutter in self.coordinator.shutters:

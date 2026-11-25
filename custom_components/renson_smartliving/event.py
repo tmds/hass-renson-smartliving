@@ -9,6 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 if TYPE_CHECKING:
     from . import OpenMoticsConfigEntry
+from .const import DOMAIN
 from .coordinator import EntityNaming, OpenMoticsCoordinator, signal_config_loaded
 from .entity import OpenMoticsEntity, remove_stale_entities
 
@@ -56,10 +57,18 @@ def create_entities(
     return entities
 
 
+def _find_entity_id(
+    coordinator: OpenMoticsCoordinator, om_id: int, domain: str
+) -> str | None:
+    """Find the HA entity ID for a gateway object by its domain and gateway ID."""
+    by_om_id = coordinator.hass.data.get(DOMAIN, {}).get("om_id_to_entity", {})
+    return by_om_id.get((domain, om_id))
+
+
 def _linked_output(
     coordinator: OpenMoticsCoordinator, input_id: int
-) -> dict[str, Any] | None:
-    """Describe the output or screen linked to an input, if any."""
+) -> str | None:
+    """Return the HA entity ID of the output or screen linked to an input."""
     for inp in coordinator.inputs:
         if inp.get("id") != input_id:
             continue
@@ -67,26 +76,17 @@ def _linked_output(
         if action is None:
             return None
         if action == 240:
-            # Extended actions: recognise single-pair shutter encodings
-            # ("103,<shutter>" toggle but also 100/101/102 up/down/stop and
-            # 108/109 up/stop/up, down/stop/down toggles) and the group
-            # action run "2,<group_action_id>".
             actions = str(inp.get("basic_actions") or "").split(",")
             if len(actions) == 2 and actions[0] in (
                 "100", "101", "102", "103", "108", "109"
             ):
                 shutter_id = int(actions[1])
-                for shutter in coordinator.shutters:
-                    if shutter.get("id") == shutter_id:
-                        return {"id": shutter_id, "name": shutter.get("name")}
-                return {"id": shutter_id, "name": None}
+                return _find_entity_id(coordinator, shutter_id, "cover")
             return None
         if action >= 240:
             return None
-        for output in coordinator.outputs:
-            if output.get("id") == action:
-                return {"id": action, "name": output.get("name")}
-        return {"id": action, "name": None}
+        return _find_entity_id(coordinator, action, "light") or \
+            _find_entity_id(coordinator, action, "switch")
     return None
 
 
@@ -154,11 +154,10 @@ class OpenMoticsEvent(OpenMoticsEntity, EventEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        attrs: dict[str, Any] = {"openmotics_id": self._input_id}
+        attrs: dict[str, Any] = {}
         linked = _linked_output(self.coordinator, self._input_id)
         if linked is not None:
-            attrs["linked_output_id"] = linked["id"]
-            attrs["linked_output_name"] = linked["name"]
+            attrs["linked_output"] = linked
         ga_id = _linked_group_action(self.coordinator, self._input_id)
         if ga_id is not None:
             attrs["linked_group_action_id"] = ga_id

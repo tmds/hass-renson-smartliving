@@ -169,13 +169,7 @@ class RensonInputLinkCard extends HTMLElement {
 
   _linked(entityId) {
     const st = this._hass && this._hass.states[entityId];
-    if (!st || !st.attributes || st.attributes.linked_output_id === undefined) {
-      return null;
-    }
-    return {
-      id: st.attributes.linked_output_id,
-      name: st.attributes.linked_output_name,
-    };
+    return st && st.attributes && st.attributes.linked_output || null;
   }
 
   _candidateOutputs() {
@@ -193,17 +187,6 @@ class RensonInputLinkCard extends HTMLElement {
         info && info.platform === "renson_smartliving"
       );
     });
-  }
-
-  _outputIdOf(entityId) {
-    const st = this._hass && this._hass.states[entityId];
-    const attrId = st && st.attributes && st.attributes.openmotics_id;
-    if (attrId !== undefined) return Number(attrId);
-    const reg = this._hass && this._hass.entities && this._hass.entities[entityId];
-    const uid = reg && reg.unique_id;
-    if (!uid) return null;
-    const m = String(uid).match(/_output_(\d+)_/);
-    return m ? Number(m[1]) : null;
   }
 
   _roomOf(entityId) {
@@ -234,10 +217,10 @@ class RensonInputLinkCard extends HTMLElement {
           st && st.attributes ? st.attributes.basic_actions : ""
         );
         linkText = desc || (linked
-          ? this._t("linked_to", { name: linked.name || ("output " + linked.id) })
+          ? this._t("linked_to", { name: this._friendly(linked) })
           : this._t("gateway_automation"));
       } else if (linked) {
-        linkText = this._t("linked_to", { name: linked.name || ("output " + linked.id) });
+        linkText = this._t("linked_to", { name: this._friendly(linked) });
       } else {
         linkText = this._t("not_linked");
       }
@@ -417,15 +400,13 @@ class RensonInputLinkCard extends HTMLElement {
     const rooms = [...new Set(outputs.map((eid) => this._roomOf(eid)).filter(Boolean))];
     let roomFilter = currentRoom && rooms.includes(currentRoom) ? currentRoom : "all";
 
-    const selectedId = current ? current.id : null;
-
     const renderOpts = () => {
       const list = roomFilter === "all"
         ? outputs
         : outputs.filter((eid) => this._roomOf(eid) === roomFilter);
       return list
         .map((eid) => {
-          const sel = selectedId !== null && this._outputIdOf(eid) === selectedId;
+          const sel = current !== null && eid === current;
           return `
           <div class="opt ${sel ? "sel" : ""}" data-entity="${eid}">
             <div>
@@ -464,7 +445,7 @@ class RensonInputLinkCard extends HTMLElement {
         <div class="opts">${renderOpts()}</div>
         <div class="actions">
           <button class="cancel">${t(this._lang, "cancel")}</button>
-          <button class="save" ${extended && selectedId === null ? "disabled" : ""}>${t(this._lang, "save_link")}</button>
+          <button class="save" ${extended && current === null ? "disabled" : ""}>${t(this._lang, "save_link")}</button>
         </div>
       </div>`;
 
@@ -515,9 +496,8 @@ class RensonInputLinkCard extends HTMLElement {
         optsHost.innerHTML = renderOpts();
         wireOpts();
         selected = null;
-        if (selectedId !== null) {
-          const match = outputs.find((eid) => this._outputIdOf(eid) === selectedId);
-          if (match) selected = match;
+        if (current !== null) {
+          selected = outputs.includes(current) ? current : null;
         }
       } else {
         selected = null;
@@ -604,9 +584,8 @@ class RensonInputLinkCard extends HTMLElement {
 
     let selected = null;
     // Pre-select the currently linked output (even when filtered out of view).
-    if (selectedId !== null) {
-      const match = outputs.find((eid) => this._outputIdOf(eid) === selectedId);
-      if (match) selected = match;
+    if (current !== null) {
+      selected = outputs.includes(current) ? current : null;
     }
     const saveBtn = overlay.querySelector(".save");
     const syncSave = () => {
@@ -749,9 +728,6 @@ class RensonInputLinkCard extends HTMLElement {
     return parts.join(" · ") || "(empty)";
   }
 
-  _omIdOf(entityId) {
-    return this._outputIdOf(entityId);
-  }
 }
 
 customElements.define("renson-input-link-card", RensonInputLinkCard);
