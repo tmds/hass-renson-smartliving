@@ -2,7 +2,7 @@
  * Renson rooms grid: all room tiles in one responsive full-width grid.
  *
  * Config:
- *   type: custom:renson-rooms-grid
+ *   type: custom:renson-smartliving-rooms-grid
  *   rooms:
  *     - path: /lovelace/praktijk
  *       title: Praktijk
@@ -12,7 +12,7 @@
  *
  * Use in a panel view (type: panel) so the grid spans the full width.
  */
-import { t, esc } from "./renson-common.js?v=16";
+import { t, esc } from "./renson-smartliving-common.js?v=16";
 
 class RensonRoomsGrid extends HTMLElement {
   static getStubConfig() {
@@ -413,7 +413,7 @@ class RensonRoomsGrid extends HTMLElement {
       });
       const view = config.views && config.views[0];
       const card = view && view.cards && view.cards[0];
-      if (card && card.type === "custom:renson-rooms-grid") {
+      if (card && card.type === "custom:renson-smartliving-rooms-grid") {
         card.rooms = this._rooms;
         // De tab-rij volgt de view-volgorde: herschik de ruimte-views
         // mee met de gesleepte volgorde. Views[0] (Overview) blijft eerst;
@@ -440,11 +440,11 @@ class RensonRoomsGrid extends HTMLElement {
   }
 }
 
-customElements.define("renson-rooms-grid", RensonRoomsGrid);
+customElements.define("renson-smartliving-rooms-grid", RensonRoomsGrid);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "renson-rooms-grid",
+  type: "renson-smartliving-rooms-grid",
   name: "Renson Rooms Grid",
   description: "All room tiles in one responsive full-width grid",
 });

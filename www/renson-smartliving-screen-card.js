@@ -5,10 +5,10 @@
  * shutter travel timers via renson_smartliving.set_shutter_timings.
  *
  * Config:
- *   type: custom:renson-screen-card
+ *   type: custom:renson-smartliving-screen-card
  *   entity: cover.keuken_screen_keuken
  */
-import { t } from "./renson-common.js?v=16";
+import { t } from "./renson-smartliving-common.js?v=16";
 
 class RensonScreenCard extends HTMLElement {
   static getStubConfig() {
@@ -187,11 +187,11 @@ class RensonScreenCard extends HTMLElement {
   }
 }
 
-customElements.define("renson-screen-card", RensonScreenCard);
+customElements.define("renson-smartliving-screen-card", RensonScreenCard);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "renson-screen-card",
+  type: "renson-smartliving-screen-card",
   name: "Renson Screen Card",
   description: "Native cover tile with a travel-timer configuration button",
 });

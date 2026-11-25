@@ -5,13 +5,13 @@
  * navigates to the room view on click.
  *
  * Config:
- *   type: custom:renson-room-card
+ *   type: custom:renson-smartliving-room-card
  *   path: /lovelace/badkamer-beneden
  *   title: Badkamer beneden
  *   climate: climate.badkamer_beneden
  *   lights: [light.x, light.y]
  */
-import { esc } from "./renson-common.js?v=16";
+import { esc } from "./renson-smartliving-common.js?v=16";
 
 class RensonRoomCard extends HTMLElement {
   static getStubConfig() {
@@ -241,11 +241,11 @@ class RensonRoomCard extends HTMLElement {
   }
 }
 
-customElements.define("renson-room-card", RensonRoomCard);
+customElements.define("renson-smartliving-room-card", RensonRoomCard);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "renson-room-card",
+  type: "renson-smartliving-room-card",
   name: "Renson Room Card",
   description: "Clean room entry tile that navigates to the room view",
 });

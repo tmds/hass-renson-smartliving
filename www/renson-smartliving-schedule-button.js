@@ -2,10 +2,10 @@
  * Renson schedule button: opens the thermostat schedule editor popup.
  *
  * Config:
- *   type: custom:renson-schedule-button
+ *   type: custom:renson-smartliving-schedule-button
  *   entity: climate.praktijk
  */
-import { t } from "./renson-common.js?v=16";
+import { t } from "./renson-smartliving-common.js?v=16";
 
 class RensonScheduleButton extends HTMLElement {
   static getStubConfig() {
@@ -86,7 +86,7 @@ class RensonScheduleButton extends HTMLElement {
       const overlay = this.renderRoot.querySelector(".overlay");
       const host = this.renderRoot.querySelector(".editor-host");
       if (!this._editor) {
-        this._editor = document.createElement("renson-thermostat-config-card");
+        this._editor = document.createElement("renson-smartliving-thermostat-config-card");
         this._editor.setConfig({ entity: this._config.entity });
         host.appendChild(this._editor);
       }
@@ -107,11 +107,11 @@ class RensonScheduleButton extends HTMLElement {
   }
 }
 
-customElements.define("renson-schedule-button", RensonScheduleButton);
+customElements.define("renson-smartliving-schedule-button", RensonScheduleButton);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "renson-schedule-button",
+  type: "renson-smartliving-schedule-button",
   name: "Renson Schedule Button",
   description: "Opens the OpenMotics thermostat schedule editor in a popup",
 });

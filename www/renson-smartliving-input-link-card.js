@@ -6,12 +6,12 @@
  * without Home Assistant running (the link is written to the gateway config).
  *
  * Config:
- *   type: custom:renson-input-link-card
+ *   type: custom:renson-smartliving-input-link-card
  *   entities: [event.keuken_keuken_kant_deur_1_4, ...]   (required)
  *   outputs:  [light.keuken_inbouwspots, ...]            (optional; defaults to
  *              all OpenMotics lights/switches in the same area as the inputs)
  */
-import { t, esc } from "./renson-common.js?v=16";
+import { t, esc } from "./renson-smartliving-common.js?v=16";
 
 class RensonInputLinkCard extends HTMLElement {
   static getStubConfig() {
@@ -504,7 +504,7 @@ class RensonInputLinkCard extends HTMLElement {
         optsHost.innerHTML = renderGAs();
         wireGAs();
         // Preload the editor module so the first Edit click is instant.
-        import("/local/renson-automation-editor.js?v=9").catch(() => {});
+        import("/local/renson-smartliving-automation-editor.js?v=9").catch(() => {});
         // Re-render when the group actions fetch completes while open.
         this._dialogRefresh = () => {
           optsHost.innerHTML = renderGAs();
@@ -665,15 +665,15 @@ class RensonInputLinkCard extends HTMLElement {
      the data we already fetched (no wait); when it closes, refresh. */
   async _openAutomationEditor(gaId) {
     try {
-      await import("/local/renson-automation-editor.js?v=9");
+      await import("/local/renson-smartliving-automation-editor.js?v=9");
     } catch (err) { return; }
-    const C = customElements.get("renson-automation-editor");
+    const C = customElements.get("renson-smartliving-automation-editor");
     if (!C) return;
     const host = document.createElement("div");
     host.style.cssText =
       "position:fixed;top:0;left:0;width:0;height:0;overflow:visible;";
     document.body.appendChild(host);
-    const ed = document.createElement("renson-automation-editor");
+    const ed = document.createElement("renson-smartliving-automation-editor");
     host.appendChild(ed);
     ed.setConfig({});
     if (this._gaResp) {
@@ -730,11 +730,11 @@ class RensonInputLinkCard extends HTMLElement {
 
 }
 
-customElements.define("renson-input-link-card", RensonInputLinkCard);
+customElements.define("renson-smartliving-input-link-card", RensonInputLinkCard);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "renson-input-link-card",
+  type: "renson-smartliving-input-link-card",
   name: "Renson Input Link Card",
   description: "Link OpenMotics inputs (buttons) to outputs by clicking them",
 });

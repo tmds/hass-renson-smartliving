@@ -7,10 +7,10 @@
  * renson_smartliving.set_shutter_timings service.
  *
  * Config:
- *   type: custom:renson-screen-timings-button
+ *   type: custom:renson-smartliving-screen-timings-button
  *   entity: cover.keuken_screen_keuken
  */
-import { t } from "./renson-common.js?v=16";
+import { t } from "./renson-smartliving-common.js?v=16";
 
 class RensonScreenTimingsButton extends HTMLElement {
   static getStubConfig() {
@@ -153,11 +153,11 @@ class RensonScreenTimingsButton extends HTMLElement {
   }
 }
 
-customElements.define("renson-screen-timings-button", RensonScreenTimingsButton);
+customElements.define("renson-smartliving-screen-timings-button", RensonScreenTimingsButton);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "renson-screen-timings-button",
+  type: "renson-smartliving-screen-timings-button",
   name: "Renson Screen Timings Button",
   description: "Edit the travel timers of an OpenMotics shutter",
 });

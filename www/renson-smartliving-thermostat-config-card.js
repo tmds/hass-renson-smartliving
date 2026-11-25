@@ -8,10 +8,10 @@
  * services.
  *
  * Manual card config:
- *   type: custom:renson-thermostat-config-card
+ *   type: custom:renson-smartliving-thermostat-config-card
  *   entity: climate.praktijk
  */
-import { t, esc, dayLabels, dayLabel } from "./renson-common.js?v=16";
+import { t, esc, dayLabels, dayLabel } from "./renson-smartliving-common.js?v=16";
 
 class RensonThermostatConfigCard extends HTMLElement {
   static getStubConfig() {
@@ -615,12 +615,12 @@ class RensonThermostatConfigCard extends HTMLElement {
 }
 
 customElements.define(
-  "renson-thermostat-config-card", RensonThermostatConfigCard
+  "renson-smartliving-thermostat-config-card", RensonThermostatConfigCard
 );
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "renson-thermostat-config-card",
+  type: "renson-smartliving-thermostat-config-card",
   name: "Renson Thermostat Config Card",
   description: "Edit OpenMotics thermostat schedules, away and lead time",
 });

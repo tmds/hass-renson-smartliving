@@ -9,10 +9,10 @@
  * types on save, so writing them back would corrupt the automation).
  *
  * Config:
- *   type: custom:renson-automation-editor
+ *   type: custom:renson-smartliving-automation-editor
  *   title: (optional heading)
  */
-import { t, esc } from "./renson-common.js?v=16";
+import { t, esc } from "./renson-smartliving-common.js?v=16";
 
 /* ------------------------------------------------------------------ */
 /* Bytecode codec (mirrors gateway GroupActionMapper, fw 3.9.9)        */
@@ -778,11 +778,11 @@ class RensonAutomationEditor extends HTMLElement {
   }
 }
 
-customElements.define("renson-automation-editor", RensonAutomationEditor);
+customElements.define("renson-smartliving-automation-editor", RensonAutomationEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "renson-automation-editor",
+  type: "renson-smartliving-automation-editor",
   name: "Renson Automation Editor",
   description: "Edit OpenMotics gateway automations (group actions)",
 });

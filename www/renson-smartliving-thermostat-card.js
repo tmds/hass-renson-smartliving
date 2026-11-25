@@ -5,10 +5,10 @@
  * renson-thermostat-config-card editor in a modal overlay.
  *
  * Manual card config:
- *   type: custom:renson-thermostat-card
+ *   type: custom:renson-smartliving-thermostat-card
  *   entity: climate.praktijk
  */
-import { t } from "./renson-common.js?v=16";
+import { t } from "./renson-smartliving-common.js?v=16";
 
 class RensonThermostatCard extends HTMLElement {
   static getStubConfig() {
@@ -153,7 +153,7 @@ class RensonThermostatCard extends HTMLElement {
       const overlay = this.renderRoot.querySelector(".overlay");
       const host = this.renderRoot.querySelector(".editor-host");
       if (!this._editor) {
-        this._editor = document.createElement("renson-thermostat-config-card");
+        this._editor = document.createElement("renson-smartliving-thermostat-config-card");
         this._editor.setConfig({ entity: this._config.entity });
         host.appendChild(this._editor);
       }
@@ -250,11 +250,11 @@ class RensonThermostatCard extends HTMLElement {
   }
 }
 
-customElements.define("renson-thermostat-card", RensonThermostatCard);
+customElements.define("renson-smartliving-thermostat-card", RensonThermostatCard);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "renson-thermostat-card",
+  type: "renson-smartliving-thermostat-card",
   name: "Renson Thermostat Card",
   description: "OpenMotics thermostat tile with a schedule editor popup",
 });
