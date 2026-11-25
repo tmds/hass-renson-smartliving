@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, cast
 
 import voluptuous as vol
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
@@ -431,8 +433,27 @@ async def _async_run_group_action(call: ServiceCall) -> None:
     _LOGGER.info("Group action %d triggered", call.data["id"])
 
 
+FRONTEND_URL_BASE = "/renson_smartliving"
+FRONTEND_DIR = Path(__file__).parent / "frontend"
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register the OpenMotics services."""
+    """Register the OpenMotics services and frontend resources."""
+    if hass.http:
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(FRONTEND_URL_BASE, str(FRONTEND_DIR), True)]
+        )
+        try:
+            from homeassistant.components.frontend import add_extra_js_url
+            import json as _json
+            _manifest = _json.loads((FRONTEND_DIR.parent / "manifest.json").read_text())
+            add_extra_js_url(
+                hass,
+                f"{FRONTEND_URL_BASE}/renson-smartliving-loader.js?v={_manifest['version']}",
+            )
+        except Exception:
+            pass
+
     hass.services.async_register(
         DOMAIN,
         "set_thermostat_schedule",

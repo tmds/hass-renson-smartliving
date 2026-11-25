@@ -500,7 +500,7 @@ class RensonInputLinkCard extends HTMLElement {
         optsHost.innerHTML = renderGAs();
         wireGAs();
         // Preload the editor module so the first Edit click is instant.
-        import("/local/renson-smartliving-automation-editor.js").catch(() => {});
+        import("/renson_smartliving/renson-smartliving-automation-editor.js").catch(() => {});
         // Re-render when the group actions fetch completes while open.
         this._dialogRefresh = () => {
           optsHost.innerHTML = renderGAs();
@@ -661,7 +661,7 @@ class RensonInputLinkCard extends HTMLElement {
      the data we already fetched (no wait); when it closes, refresh. */
   async _openAutomationEditor(gaId) {
     try {
-      await import("/local/renson-smartliving-automation-editor.js");
+      await import("/renson_smartliving/renson-smartliving-automation-editor.js");
     } catch (err) { return; }
     const C = customElements.get("renson-smartliving-automation-editor");
     if (!C) return;
