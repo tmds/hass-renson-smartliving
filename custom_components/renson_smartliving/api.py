@@ -375,6 +375,12 @@ class OpenMoticsClient:
             "/do_group_action", {"group_action_id": group_action_id}, idempotent=False
         )
 
+    # -- Gateway settings --
+
+    async def get_timezone(self) -> str:
+        data = await self.get("/get_timezone")
+        return data.get("timezone", "UTC")
+
     # -- Thermostats (V1 API) --
 
     async def get_thermostat_control(self) -> list[dict[str, Any]]:

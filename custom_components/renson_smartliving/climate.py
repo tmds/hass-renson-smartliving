@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, time, timedelta
+from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
 
 from homeassistant.components.climate import (
     PRESET_AWAY,
@@ -258,8 +259,13 @@ class OpenMoticsClimate(OpenMoticsEntity, ClimateEntity):
         )
         payload: dict[str, Any] = {"setpoint": float(target)}
         if expiration_hours:
-            expires = datetime.now(UTC) + timedelta(hours=float(expiration_hours))
-            payload["preset_expiration"] = expires.isoformat()
+            try:
+                tz_name = await self.coordinator.client.get_timezone()
+                gw_tz = ZoneInfo(tz_name)
+            except Exception:
+                gw_tz = None
+            expires = datetime.now(gw_tz) + timedelta(hours=float(expiration_hours))
+            payload["preset_expiration"] = expires.replace(tzinfo=None).isoformat()
         await self.coordinator.client.set_thermostat_control(
             self._thermostat_id, payload
         )
