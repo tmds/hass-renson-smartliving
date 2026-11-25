@@ -101,8 +101,9 @@ async def test_set_temperature_sends_expiration(
     climate = _make_climate(coordinator)
     coordinator.client = MagicMock()
     coordinator.client.set_thermostat_control = AsyncMock()
+    coordinator.client.get_timezone = AsyncMock(return_value="Europe/Brussels")
 
-    before = datetime.now(UTC)
+    before = datetime.now()
     await climate.async_set_temperature(temperature=21.5)
 
     args = coordinator.client.set_thermostat_control.call_args
@@ -110,6 +111,7 @@ async def test_set_temperature_sends_expiration(
     assert thermostat_id == 0
     assert payload["setpoint"] == 21.5
     expires = datetime.fromisoformat(payload["preset_expiration"])
+    assert expires.tzinfo is None
     assert before + timedelta(hours=1.9) < expires < before + timedelta(hours=2.1)
 
 
