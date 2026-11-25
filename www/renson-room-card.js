@@ -11,6 +11,8 @@
  *   climate: climate.badkamer_beneden
  *   lights: [light.x, light.y]
  */
+import { esc } from "./renson-common.js?v=16";
+
 class RensonRoomCard extends HTMLElement {
   static getStubConfig() {
     return { path: "", title: "", climate: "" };
@@ -85,7 +87,7 @@ class RensonRoomCard extends HTMLElement {
         : raw;
       chips.push(
         `<button class="chip light ${on ? "on" : ""}" data-entity="${eid}" data-domain="light" ` +
-        `data-name="${name}">` +
+        `data-name="${esc(name)}">` +
         `<ha-icon icon="mdi:lightbulb"></ha-icon></button>`
       );
     }
@@ -98,7 +100,7 @@ class RensonRoomCard extends HTMLElement {
         : raw;
       chips.push(
         `<button class="chip cover ${open ? "on" : ""}" data-entity="${eid}" data-domain="cover" ` +
-        `data-name="${name}">` +
+        `data-name="${esc(name)}">` +
         `<ha-icon icon="mdi:window-shutter"></ha-icon></button>`
       );
     }

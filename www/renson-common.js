@@ -4,7 +4,7 @@
  * The language follows hass.locale.language (e.g. "nl", "en-US");
  * anything unknown falls back to English. Import it from the cards:
  *
- *   import { t, dayLabels } from "./renson-i18n.js?v=15";
+ *   import { t, dayLabels } from "./renson-common.js?v=16";
  *
  * Bump the ?v= in every importing card when this file changes.
  */
@@ -297,6 +297,12 @@ const DAY_LABELS = {
   ],
 };
 
+export function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
 export function normLang(lang) {
   return String(lang || "en").split(/[-_]/)[0].toLowerCase();
 }
@@ -306,7 +312,7 @@ export function t(lang, key, params = {}) {
   let s = dict[key] !== undefined ? dict[key] : STRINGS.en[key];
   if (s === undefined) return key;
   for (const [k, v] of Object.entries(params)) {
-    s = s.split("{" + k + "}").join(String(v));
+    s = s.split("{" + k + "}").join(esc(String(v)));
   }
   return s;
 }

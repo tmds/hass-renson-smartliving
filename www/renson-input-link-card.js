@@ -11,7 +11,7 @@
  *   outputs:  [light.keuken_inbouwspots, ...]            (optional; defaults to
  *              all OpenMotics lights/switches in the same area as the inputs)
  */
-import { t } from "./renson-i18n.js?v=15";
+import { t, esc } from "./renson-common.js?v=16";
 
 class RensonInputLinkCard extends HTMLElement {
   static getStubConfig() {
@@ -244,7 +244,7 @@ class RensonInputLinkCard extends HTMLElement {
       return `
         <div class="row ${flashing ? "flash" : ""}" data-entity="${eid}">
           <div class="info">
-            <div class="name">${this._friendly(eid)}${flashing ? ' <ha-icon class="pressicon" icon="mdi:gesture-tap"></ha-icon>' : ""}</div>
+            <div class="name">${esc(this._friendly(eid))}${flashing ? ' <ha-icon class="pressicon" icon="mdi:gesture-tap"></ha-icon>' : ""}</div>
             <div class="link ${linked ? "on" : ""}">${linkText}</div>
           </div>
           <button class="go" data-entity="${eid}">${this._t("link")}</button>
@@ -429,7 +429,7 @@ class RensonInputLinkCard extends HTMLElement {
           return `
           <div class="opt ${sel ? "sel" : ""}" data-entity="${eid}">
             <div>
-              <div>${this._friendly(eid)}${eid.startsWith("cover.") ? ' <span class="cur">' + this._t("screen_label") + "</span>" : ""}${sel ? ' <span class="cur">' + this._t("currently_linked") + "</span>" : ""}</div>
+              <div>${esc(this._friendly(eid))}${eid.startsWith("cover.") ? ' <span class="cur">' + this._t("screen_label") + "</span>" : ""}${sel ? ' <span class="cur">' + this._t("currently_linked") + "</span>" : ""}</div>
               <div class="dom">${eid}</div>
             </div>
           </div>`;
@@ -439,19 +439,19 @@ class RensonInputLinkCard extends HTMLElement {
 
     const roomOptions = [];
     if (currentRoom) {
-      roomOptions.push(`<option value="${currentRoom}">${this._areaName(currentRoom)}</option>`);
+      roomOptions.push(`<option value="${currentRoom}">${esc(this._areaName(currentRoom))}</option>`);
     }
     roomOptions.push(`<option value="all">${this._t("all_rooms")}</option>`);
     for (const r of rooms) {
       if (r !== currentRoom) {
-        roomOptions.push(`<option value="${r}">${this._areaName(r)}</option>`);
+        roomOptions.push(`<option value="${r}">${esc(this._areaName(r))}</option>`);
       }
     }
 
     overlay.innerHTML = `
       <div class="dialog">
         <button class="close">&times;</button>
-        <h3>${this._friendly(entityId)}</h3>
+        <h3>${esc(this._friendly(entityId))}</h3>
         <div class="sub">${this._t("link_hint")}</div>
         <div class="tabs">
           <button class="tab tabout active">${this._t("tab_output")}</button>
@@ -547,7 +547,7 @@ class RensonInputLinkCard extends HTMLElement {
       }
       for (const g of gas.filter((g) => g.actions)) {
         const cur = (slot === "short" ? currentShort : currentLong) === g.id;
-        opts.push(`<option value="${g.id}" ${sel === g.id ? "selected" : ""}>${this._esc((g.name || "#" + g.id) + (cur ? " ✓" : ""))}</option>`);
+        opts.push(`<option value="${g.id}" ${sel === g.id ? "selected" : ""}>${esc((g.name || "#" + g.id) + (cur ? " ✓" : ""))}</option>`);
       }
       return opts.join("");
     };
@@ -678,12 +678,6 @@ class RensonInputLinkCard extends HTMLElement {
       if (this._gas === null) await this._fetchGas();
       this._render();
     });
-  }
-
-  _esc(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
   }
 
   /* Open the automation editor dialog for one group action. The editor card

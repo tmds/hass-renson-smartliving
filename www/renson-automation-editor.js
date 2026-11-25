@@ -12,7 +12,7 @@
  *   type: custom:renson-automation-editor
  *   title: (optional heading)
  */
-import { t } from "./renson-i18n.js?v=15";
+import { t, esc } from "./renson-common.js?v=16";
 
 /* ------------------------------------------------------------------ */
 /* Bytecode codec (mirrors gateway GroupActionMapper, fw 3.9.9)        */
@@ -340,11 +340,11 @@ class RensonAutomationEditor extends HTMLElement {
     const rows = data
       ? (data.actions || []).filter((ga) => ga.name || ga.actions).map((ga) => `        <div class="row" data-id="${ga.id}">
           <div class="rowmain">
-            <div class="rowname">${ga.name ? this._esc(ga.name) : this._t("unnamed") + " #" + ga.id}
+            <div class="rowname">${ga.name ? esc(ga.name) : this._t("unnamed") + " #" + ga.id}
               ${ga.internal ? `<span class="tag warn">${this._t("tag_internal")}</span>` : ""}
               ${this._hasUnsupported(ga) ? `<span class="tag warn">${this._t("tag_unsupported")}</span>` : ""}
             </div>
-            <div class="rowsum">${this._esc(this._summary(ga))}</div>
+            <div class="rowsum">${esc(this._summary(ga))}</div>
           </div>
           <div class="rowbtns">
             <button class="btn run" data-id="${ga.id}">${this._t("run")}</button>
@@ -427,8 +427,8 @@ class RensonAutomationEditor extends HTMLElement {
         .new { margin-top: 10px; }
       </style>
       <div class="card">
-        <h3>${this._esc(this._config.title || this._t("editor_title"))}</h3>
-        ${this._error ? `<div class="err">${this._esc(this._error)}</div>` : ""}
+        <h3>${esc(this._config.title || this._t("editor_title"))}</h3>
+        ${this._error ? `<div class="err">${esc(this._error)}</div>` : ""}
         ${this._loading && !data ? `<div class="rowsum">${this._t("loading")}</div>` : rows}
         ${empty}
       </div>
@@ -446,12 +446,6 @@ class RensonAutomationEditor extends HTMLElement {
     }
     const nb = this.renderRoot.querySelector(".new");
     if (nb) nb.addEventListener("click", () => this._openNew());
-  }
-
-  _esc(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
   }
 
   async _run(id) {
@@ -542,7 +536,7 @@ class RensonAutomationEditor extends HTMLElement {
           return `
         <div class="step kwrow ${kw.cls}" style="padding-left:${depth * 18}px" data-i="${i}">
           <ha-icon icon="${kw.icon}"></ha-icon>
-          <span class="kwpill">${this._esc(this._stepText(s))}</span>
+          <span class="kwpill">${esc(this._stepText(s))}</span>
           <span class="grow"></span>
           <button class="mini up" data-i="${i}" title="up">&#8593;</button>
           <button class="mini dn" data-i="${i}" title="down">&#8595;</button>
@@ -552,7 +546,7 @@ class RensonAutomationEditor extends HTMLElement {
         return `
         <div class="step actrow" style="padding-left:${(depth + 1) * 18}px" data-i="${i}">
           <ha-icon class="sicon" icon="${STEP_ICON(s)}"></ha-icon>
-          <span class="grow">${this._esc(this._stepText(s))}</span>
+          <span class="grow">${esc(this._stepText(s))}</span>
           <button class="mini up" data-i="${i}" title="up">&#8593;</button>
           <button class="mini dn" data-i="${i}" title="down">&#8595;</button>
           <button class="mini del" data-i="${i}" title="remove">&#10005;</button>
@@ -620,7 +614,7 @@ class RensonAutomationEditor extends HTMLElement {
 
     const devOptions = (map, label) =>
       Object.entries(map).map(([id, name]) =>
-        `<option value="${id}">${this._esc(name || "#" + id)}</option>`).join("");
+        `<option value="${id}">${esc(name || "#" + id)}</option>`).join("");
 
     const addMenuHtml = `
       <div class="addrow">
@@ -668,9 +662,9 @@ class RensonAutomationEditor extends HTMLElement {
 
     overlay.innerHTML = `
       <div class="dialog">
-        <h3>${ga.name ? this._esc(ga.name) : this._t("new_automation")}</h3>
+        <h3>${ga.name ? esc(ga.name) : this._t("new_automation")}</h3>
         <label>${this._t("field_name")}</label>
-        <input type="text" class="ganame" maxlength="16" value="${this._esc(ga.name || "")}">
+        <input type="text" class="ganame" maxlength="16" value="${esc(ga.name || "")}">
         ${locked ? `<div class="warnbox">${this._t("locked_unsupported")}</div>` : ""}
         <div class="steps"></div>
         ${locked ? "" : addMenuHtml}
@@ -712,7 +706,7 @@ class RensonAutomationEditor extends HTMLElement {
         } else if (v === "run_action") {
           html = `<select class="gasel">${(this._data.actions || [])
             .filter((g) => g.actions)
-            .map((g) => `<option value="${g.id}">${this._esc(g.name || "#" + g.id)}</option>`)
+            .map((g) => `<option value="${g.id}">${esc(g.name || "#" + g.id)}</option>`)
             .join("")}</select>`;
         }
         devwrap.innerHTML = html;

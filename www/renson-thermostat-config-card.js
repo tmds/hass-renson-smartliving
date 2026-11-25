@@ -11,7 +11,7 @@
  *   type: custom:renson-thermostat-config-card
  *   entity: climate.praktijk
  */
-import { t, dayLabels, dayLabel } from "./renson-i18n.js?v=15";
+import { t, esc, dayLabels, dayLabel } from "./renson-common.js?v=16";
 
 class RensonThermostatConfigCard extends HTMLElement {
   static getStubConfig() {
@@ -251,7 +251,7 @@ class RensonThermostatConfigCard extends HTMLElement {
             <div style="font-size:.85em;color:var(--secondary-text-color)">${this._t("copy_this_week_to")}</div>
             <select class="copy-target">
               ${ents.length === 0 ? `<option value="">${this._t("no_other_thermostat")}</option>` : ""}
-              ${ents.map((e) => `<option value="${e.id}">${e.name}</option>`).join("")}
+              ${ents.map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join("")}
             </select>
             <button class="btn primary copy-go" ${ents.length === 0 ? "disabled" : ""}>${this._t("copy_week")}</button>
           `;
@@ -493,7 +493,7 @@ class RensonThermostatConfigCard extends HTMLElement {
       <ha-card>
         <div class="head">
           <div>
-            <div class="name">${this._roomName(entity)}</div>
+            <div class="name">${esc(this._roomName(entity))}</div>
             <div class="room">${this._t("weekly_schedule")}</div>
           </div>
           <div class="now">

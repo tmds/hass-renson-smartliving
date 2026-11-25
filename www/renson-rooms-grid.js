@@ -12,7 +12,7 @@
  *
  * Use in a panel view (type: panel) so the grid spans the full width.
  */
-import { t } from "./renson-i18n.js?v=15";
+import { t, esc } from "./renson-common.js?v=16";
 
 class RensonRoomsGrid extends HTMLElement {
   static getStubConfig() {
@@ -135,7 +135,7 @@ class RensonRoomsGrid extends HTMLElement {
       const on = s && s.state === "on";
       chips.push(
         `<button class="chip light ${on ? "on" : ""}" data-entity="${eid}" data-domain="light" ` +
-        `data-name="${this._shortName(s && s.attributes.friendly_name) || eid}">` +
+        `data-name="${esc(this._shortName(s && s.attributes.friendly_name) || eid)}">` +
         `<ha-icon icon="mdi:lightbulb"></ha-icon></button>`
       );
     }
@@ -148,7 +148,7 @@ class RensonRoomsGrid extends HTMLElement {
         : "";
       chips.push(
         `<button class="chip cover ${open ? "on" : ""}" data-entity="${eid}" data-domain="cover" ` +
-        `data-name="${this._shortName(s && s.attributes.friendly_name) || eid}">` +
+        `data-name="${esc(this._shortName(s && s.attributes.friendly_name) || eid)}">` +
         `<ha-icon icon="mdi:window-shutter"></ha-icon>${posTag}</button>`
       );
     }
