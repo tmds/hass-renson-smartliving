@@ -40,7 +40,7 @@ def _load_status(coordinator: OpenMoticsCoordinator) -> None:
         {
             "output_status": [],
             "shutter_status": {},
-            "thermostat_status": SAMPLE_THERMOSTATS,
+            "THERMOSTAT_CONTROL": SAMPLE_THERMOSTATS,
         }
     )
 

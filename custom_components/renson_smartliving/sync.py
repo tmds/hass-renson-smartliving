@@ -29,9 +29,11 @@ EXPECTED_CONTROL_EVENTS = {
 }
 
 # V2 (CLASSIC) gateways don't emit VERSION over WebSocket;
-# fetched via REST fallback in _sync() when missing.
+# THERMOSTAT_CONTROL was added in a later firmware version.
+# Both are fetched via REST fallback in _sync() when missing.
 OPTIONAL_CONTROL_EVENTS = {
     "VERSION",
+    "THERMOSTAT_CONTROL",
 }
 
 CHANGE_EVENTS = {
@@ -189,6 +191,11 @@ class SyncLoop:
                     "master": v.get("master", ""),
                 }
 
+            if "THERMOSTAT_CONTROL" not in config:
+                config["THERMOSTAT_CONTROL"] = (
+                    await self._client.get_thermostat_control()
+                )
+
             # WS INPUT_CONTROL only includes in_use inputs; fetch via
             # REST to also include inputs not in_use on the gateway,
             # as the user may want to use them for HA automations.
@@ -204,20 +211,6 @@ class SyncLoop:
             shutter_status = await self._client.get_shutter_status()
             config["output_status"] = output_status
             config["shutter_status"] = shutter_status
-            # Thermostats (V1 API): the control list holds both the
-            # configuration (name, room) and the current status.
-            try:
-                config["thermostat_status"] = (
-                    await self._client.get_thermostat_control()
-                )
-            except OpenMoticsError:
-                # Older firmware without the V1 thermostat API.
-                _LOGGER.warning(
-                    "Gateway %s has no V1 thermostat API, "
-                    "climate entities are not created",
-                    self._client.host,
-                )
-                config["thermostat_status"] = []
             self._on_full_update(config)
 
         except BaseException:
@@ -259,6 +252,7 @@ class SyncLoop:
                 await client.get_group_action_configurations()
             ),
             "PLATFORM_DETAILS": await client.get_platform_details(),
+            "THERMOSTAT_CONTROL": await client.get_thermostat_control(),
         }
         v = await client.get_version()
         config["VERSION"] = {

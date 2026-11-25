@@ -24,6 +24,7 @@ WS_SUBSCRIPTION_TYPES = [
     "SHUTTER_CONTROL",
     "ROOM_CONTROL",
     "GROUP_ACTION_CONTROL",
+    "THERMOSTAT_CONTROL",
     # System (flushed by sync/control)
     "VERSION",
     "PLATFORM_DETAILS",

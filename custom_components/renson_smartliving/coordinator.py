@@ -255,7 +255,7 @@ class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             }
 
         # Thermostats: the V1 control list holds config and status.
-        self.thermostats = data.get("thermostat_status", [])
+        self.thermostats = data.get("THERMOSTAT_CONTROL", [])
         for thermostat in self.thermostats:
             status = thermostat.get("status")
             if status is not None:
