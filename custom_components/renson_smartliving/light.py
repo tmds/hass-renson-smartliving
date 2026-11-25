@@ -6,12 +6,15 @@ from homeassistant.components.light import ATTR_BRIGHTNESS, ColorMode, LightEnti
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util.color import brightness_to_value, value_to_brightness
 
 if TYPE_CHECKING:
     from . import OpenMoticsConfigEntry
 from .const import CONF_MIN_DIM_LEVELS, OUTPUT_TYPE_LIGHT, parse_min_dim_levels
 from .coordinator import EntityNaming, OpenMoticsCoordinator, signal_config_loaded
 from .entity import OpenMoticsEntity, remove_stale_entities
+
+_SCALE = (1, 100)
 
 
 async def async_setup_entry(
@@ -101,15 +104,19 @@ class OpenMoticsLight(OpenMoticsEntity, LightEntity):
         state = self.coordinator.get_output_state(self._output_id)
         if state is None:
             return None
-        # OM: 0-100 dimmer percentage. HA: 0-255 brightness.
-        # With a configured minimum the scale is remapped so the slider
-        # reads 0% = off, 1% = minimum, 100% = full.
-        return round(self._dimmer_to_slider(state["dimmer"]) * 255 / 100)
+        dimmer = state.get("dimmer", 0)
+        slider_pct = self._dimmer_to_slider(dimmer)
+        if slider_pct <= 0:
+            return 0
+        return value_to_brightness(_SCALE, slider_pct)
 
     def _slider_to_dimmer(self, slider_pct: int) -> int:
-        """Map slider 1-100% to the OM dimmer value (1% = minimum)."""
+        """Map slider 0-100% to the OM dimmer value."""
+        slider_pct = max(0, min(100, slider_pct))
         if not self._min_dim:
             return slider_pct
+        if slider_pct <= 0:
+            return 0
         lo = self._min_dim
         return round(lo + (slider_pct - 1) * (100 - lo) / 99)
 
@@ -118,20 +125,16 @@ class OpenMoticsLight(OpenMoticsEntity, LightEntity):
         if not self._min_dim:
             return dimmer_pct
         lo = self._min_dim
+        if lo >= 100:
+            return 100
         if dimmer_pct <= lo:
             return 1
         return round(1 + (dimmer_pct - lo) * 99 / (100 - lo))
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        dimmer = None
+        dimmer: int | None = None
         if ATTR_BRIGHTNESS in kwargs:
-            slider_pct = round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
-            if slider_pct <= 0:
-                # Slider fully down = off.
-                await self.coordinator.client.set_output(
-                    self._output_id, is_on=False
-                )
-                return
+            slider_pct = round(brightness_to_value(_SCALE, kwargs[ATTR_BRIGHTNESS]))
             dimmer = self._slider_to_dimmer(slider_pct)
         elif self._min_dim:
             # Plain "on" reuses the last dimmer value on the gateway. When
