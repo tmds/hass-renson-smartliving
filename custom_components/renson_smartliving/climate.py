@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 
 from homeassistant.components.climate import (
     PRESET_AWAY,
-    PRESET_BOOST,
     PRESET_NONE,
     ClimateEntity,
     ClimateEntityFeature,
@@ -34,13 +33,11 @@ from .entity import OpenMoticsEntity, remove_stale_entities
 _PRESET_TO_OM = {
     PRESET_AUTO: "auto",
     PRESET_AWAY: "away",
-    PRESET_BOOST: "party",
     PRESET_NONE: "manual",
 }
 _OM_PRESET_TO_HA = {
     "auto": PRESET_AUTO,
     "away": PRESET_AWAY,
-    "party": PRESET_BOOST,
     "manual": PRESET_NONE,
     # A setpoint write without explicit preset is reported as
     # "override" by the gateway: a manual, temporary or permanent
@@ -138,7 +135,6 @@ class OpenMoticsClimate(OpenMoticsEntity, ClimateEntity):
         PRESET_NONE,
         PRESET_AUTO,
         PRESET_AWAY,
-        PRESET_BOOST,
     ]
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
