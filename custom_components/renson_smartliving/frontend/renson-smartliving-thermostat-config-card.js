@@ -168,12 +168,12 @@ class RensonThermostatConfigCard extends HTMLElement {
     const src = (edit[sourceDay] || [])
       .slice()
       .sort((a, b) => this._sec(a.time) - this._sec(b.time))
-      .map((sp) => ({ time: sp.time, temperature: sp.temp }));
+      .map((sp) => ({ time: sp.time, temp: sp.temp }));
     for (const d of targetDays) edit[d] = JSON.parse(JSON.stringify(src));
     this._hass.callService("renson_smartliving", "set_thermostat_schedule", {
       entity_id: entity.entity_id,
       days: targetDays,
-      setpoints: src,
+      setpoints: src.map((sp) => ({ time: sp.time, temperature: sp.temp })),
     });
     this._flash(this._t("copied_day_to", {
       src: dayLabel(this._lang, sourceDay),
