@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -435,6 +436,9 @@ async def _async_run_group_action(call: ServiceCall) -> None:
 
 FRONTEND_URL_BASE = "/renson_smartliving"
 FRONTEND_DIR = Path(__file__).parent / "frontend"
+_MANIFEST_VERSION = json.loads(
+    (Path(__file__).parent / "manifest.json").read_text()
+).get("version", "0")
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -445,11 +449,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         )
         try:
             from homeassistant.components.frontend import add_extra_js_url
-            import json as _json
-            _manifest = _json.loads((FRONTEND_DIR.parent / "manifest.json").read_text())
             add_extra_js_url(
                 hass,
-                f"{FRONTEND_URL_BASE}/renson-smartliving-loader.js?v={_manifest['version']}",
+                f"{FRONTEND_URL_BASE}/renson-smartliving-loader.js?v={_MANIFEST_VERSION}",
             )
         except Exception:
             pass
