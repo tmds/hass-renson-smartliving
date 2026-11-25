@@ -202,10 +202,8 @@ class SyncLoop:
             # Current state
             output_status = await self._client.get_output_status()
             shutter_status = await self._client.get_shutter_status()
-            sensor_status = await self._client.get_sensor_status()
             config["output_status"] = output_status
             config["shutter_status"] = shutter_status
-            config["sensor_status"] = sensor_status
             # Thermostats (V1 API): the control list holds both the
             # configuration (name, room) and the current status.
             try:
