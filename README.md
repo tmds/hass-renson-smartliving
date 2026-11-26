@@ -43,33 +43,16 @@ When the names/rooms change in the smart living system, the entities provided by
 
 Setting a temperature on the climate entity writes the setpoint with a preset expiration (default 2 hours, configurable per config entry); returning the preset to `auto` resumes the schedule.
 
-### Inputs and shutters
+### Room dashboards
 
-- `renson_smartliving.set_input_link`: link an input (button) directly to an output, a screen or a gateway automation. A linked input acts on the gateway itself, even without Home Assistant running. Omit the target to unlink; inputs with extended gateway actions require `force: true` because linking or unlinking erases them.
+The `renson-smartliving-rooms-grid` card renders every room as a tile in a
+full-width overview panel; `renson-smartliving-room-card` is the per-room
+variant. Room views show the thermostat with a schedule button that opens the
+schedule editor, plus the lights, screens and sensors of that room.
 
-  ```yaml
-  service: renson_smartliving.set_input_link
-  target:
-    entity_id: event.bureau_bureau_deur_1_2
-  data:
-    output_entity: light.bureau_bureau
-  ```
+![Rooms overview](docs/screenshots/overview.png)
 
-  Automations support short/long press: `group_action_id` runs on a short
-  press, `group_action_id_long` on a long press (>2s hold). Both together
-  write the gateway's combined 8-byte form (`207,<long>,236,0,2,<short>,236,255`).
-
-- `renson_smartliving.set_shutter_timings`: set the travel timers (`timer_up` / `timer_down`, seconds) of a shutter. These drive the gateway's position estimate and the position slider.
-
-### Gateway automations (group actions)
-
-Gateway automations are stored as classic bytecode (`action_type, action_number` pairs). The integration validates that bytecode before writing, because the gateway silently drops unsupported action types.
-
-- `renson_smartliving.get_group_actions`: read all gateway automations plus the output/shutter/input name maps.
-- `renson_smartliving.save_group_action`: create or update an automation (`id`, `name`, `actions` as comma-separated pairs, `show_in_app`).
-- `renson_smartliving.run_group_action`: trigger an automation by id.
-
-The `renson-automation-editor` Lovelace card (in `www/`) provides a visual editor for these automations, including IF/THEN/ELSE blocks, dimmer and timer actions and shutter toggles.
+![Room view](docs/screenshots/room-view.png)
 
 ## Installation
 
