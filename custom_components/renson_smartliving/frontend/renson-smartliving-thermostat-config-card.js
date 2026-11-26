@@ -224,17 +224,31 @@ class RensonThermostatConfigCard extends HTMLElement {
               ${this._days().map(([d, lbl]) =>
                 d === src ? "" : `<button data-day="${d}">${lbl}</button>`
               ).join("")}
+              <button data-all="1">${this._t("all")}</button>
             </div>
             <button class="btn primary copy-go" disabled>${this._t("copy")}</button>
           `;
           const picked = new Set();
-          body.querySelectorAll(".daygrid button").forEach((db) => {
+          const dayBtns = [...body.querySelectorAll(".daygrid button[data-day]")];
+          const allBtn = body.querySelector(".daygrid button[data-all]");
+          const sync = () => {
+            dayBtns.forEach((b) => b.classList.toggle("sel", picked.has(b.dataset.day)));
+            allBtn.classList.toggle("sel", picked.size === dayBtns.length);
+            body.querySelector(".copy-go").disabled = picked.size === 0;
+          };
+          dayBtns.forEach((db) => {
             db.addEventListener("click", () => {
               const d = db.dataset.day;
-              if (picked.has(d)) { picked.delete(d); db.classList.remove("sel"); }
-              else { picked.add(d); db.classList.add("sel"); }
-              body.querySelector(".copy-go").disabled = picked.size === 0;
+              if (picked.has(d)) picked.delete(d);
+              else picked.add(d);
+              sync();
             });
+          });
+          // "All" selects every other day; pressed again it clears them.
+          allBtn.addEventListener("click", () => {
+            if (picked.size === dayBtns.length) picked.clear();
+            else dayBtns.forEach((b) => picked.add(b.dataset.day));
+            sync();
           });
           body.querySelector(".copy-go").addEventListener("click", () => {
             this._copyDayToDays(src, [...picked]);

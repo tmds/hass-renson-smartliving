@@ -152,7 +152,6 @@ class RensonInputLinkCard extends HTMLElement {
     }
     this._config = config;
     this._embeddedMode = !!config.embedded;
-    this._filter = "";
     if (!this.renderRoot) {
       this.renderRoot = this.attachShadow({ mode: "open" });
     }
@@ -202,7 +201,19 @@ class RensonInputLinkCard extends HTMLElement {
 
   _render() {
     const lang = this._lang || "en";
-    const makeRow = (eid) => {
+    // Inside a room sub-card the room name is already in the header, so drop
+    // it from the input name ("badkamer boven deur 1/2" -> "Deur 1/2").
+    const shortInput = (eid, areaName) => {
+      const full = this._friendly(eid);
+      if (!areaName) return full;
+      const prefix = areaName.toLowerCase() + " ";
+      if (!full.toLowerCase().startsWith(prefix) || full.length <= prefix.length) return full;
+      const rest = full.slice(prefix.length);
+      // Keep the full name when only a number would remain ("gym 1/2").
+      if (!/^\p{L}/u.test(rest)) return full;
+      return rest.charAt(0).toUpperCase() + rest.slice(1);
+    };
+    const makeRow = (eid, areaName) => {
       const linked = this._linked(eid);
       const st = this._hass && this._hass.states[eid];
       const extended = !!(st && st.attributes && st.attributes.has_extended_actions);
@@ -228,26 +239,13 @@ class RensonInputLinkCard extends HTMLElement {
         <div class="row ${flashing ? "flash" : ""}" data-entity="${eid}">
           <span class="ico"><ha-icon icon="mdi:gesture-tap"></ha-icon></span>
           <div class="info">
-            <div class="name">${esc(this._friendly(eid))}${flashing ? ' <ha-icon class="pressicon" icon="mdi:gesture-tap"></ha-icon>' : ""}</div>
+            <div class="name">${esc(shortInput(eid, areaName))}${flashing ? ' <ha-icon class="pressicon" icon="mdi:gesture-tap"></ha-icon>' : ""}</div>
             <div class="link ${linked ? "on" : ""}">${linkText}</div>
           </div>
           <button class="go" data-entity="${eid}">${this._t("link")}</button>
         </div>`;
     };
-    // Optional filter (search box): match on input name, room or linked target.
-    let visible = this._config.entities || [];
-    if (this._filter) {
-      const q = this._filter.toLowerCase();
-      visible = visible.filter((eid) => {
-        const st = this._hass && this._hass.states[eid];
-        const name = (st && st.attributes && st.attributes.friendly_name) || eid;
-        const area = this._roomOf(eid) ? this._areaName(this._roomOf(eid)) : "";
-        const linked = this._linked(eid);
-        const target = linked ? ((this._hass.states[linked] || {}).attributes || {}).friendly_name || "" : "";
-        return name.toLowerCase().includes(q) || area.toLowerCase().includes(q)
-          || target.toLowerCase().includes(q);
-      });
-    }
+    const visible = this._config.entities || [];
     // Group rows by room (area). A standalone card in a room view shows a
     // single group, so the headers only appear when there is more than one.
     const groups = new Map();
@@ -257,6 +255,8 @@ class RensonInputLinkCard extends HTMLElement {
       groups.get(area).push(eid);
     }
     const sortedAreas = [...groups.keys()].sort((a, b) => {
+      // Inputs without a room always go last.
+      if (!a !== !b) return a ? -1 : 1;
       const an = a ? this._areaName(a) : this._t("no_room");
       const bn = b ? this._areaName(b) : this._t("no_room");
       return an.localeCompare(bn, lang);
@@ -264,12 +264,34 @@ class RensonInputLinkCard extends HTMLElement {
     const multi = sortedAreas.length > 1;
     const rows = [];
     for (const area of sortedAreas) {
-      if (multi) {
-        rows.push(`<div class="roomhead">${esc(
-          area ? this._areaName(area) : this._t("no_room")
-        )}</div>`);
+      const list = groups.get(area);
+      if (!multi) {
+        for (const eid of list) rows.push(makeRow(eid));
+        continue;
       }
-      for (const eid of groups.get(area)) rows.push(makeRow(eid));
+      // One sub-card per room: header with room icon, name and how many of
+      // its inputs do something (direct link, automation or extended action).
+      const areaName = area ? this._areaName(area) : "";
+      const areaInfo = area && this._hass && this._hass.areas ? this._hass.areas[area] : null;
+      const icon = (areaInfo && areaInfo.icon) || (area ? "mdi:door-open" : "mdi:help-circle-outline");
+      const active = list.filter((eid) => {
+        const a = ((this._hass && this._hass.states[eid]) || {}).attributes || {};
+        return this._linked(eid) || a.linked_group_action_id !== undefined || a.has_extended_actions;
+      }).length;
+      rows.push(`
+        <section class="roomcard">
+          <header class="roomcard-head">
+            <span class="roompill${area ? "" : " none"}">
+              <ha-icon icon="${esc(icon)}"></ha-icon>
+              <span class="roomname">${esc(areaName || this._t("no_room"))}</span>
+            </span>
+            <span class="spacer"></span>
+            <span class="roomcnt" title="${active}/${list.length}">
+              <ha-icon icon="mdi:link-variant"></ha-icon>${active}/${list.length}
+            </span>
+          </header>
+          <div class="roomrows">${list.map((eid) => makeRow(eid, areaName)).join("")}</div>
+        </section>`);
     }
     this.renderRoot.innerHTML = `
       <style>
@@ -279,7 +301,59 @@ class RensonInputLinkCard extends HTMLElement {
           background: ${this._embeddedMode ? "transparent" : "var(--card-background-color)"};
           border-radius: var(--ha-card-border-radius, 12px);
           box-shadow: ${this._embeddedMode ? "none" : "var(--ha-card-box-shadow, none)"};
-          border: 1px solid var(--divider-color, rgba(0,0,0,.1));
+          border: ${this._embeddedMode ? "none" : "1px solid var(--divider-color, rgba(0,0,0,.1))"};
+        }
+        /* Masonry via CSS columns: cards of different heights stack without
+           the row gaps a grid leaves behind the tallest card in a row. */
+        .roomgrid { columns: 320px; column-gap: 12px; }
+        .roomcard {
+          display: inline-block; width: 100%; box-sizing: border-box;
+          break-inside: avoid; margin: 0 0 12px;
+          background: var(--card-background-color);
+          border: 1px solid var(--divider-color);
+          border-radius: 14px; padding: 2px 14px 4px;
+          transition: border-color .15s ease, box-shadow .15s ease;
+        }
+        .roomcard:hover {
+          border-color: rgba(var(--rgb-primary-color), .35);
+          box-shadow: 0 2px 10px rgba(0,0,0,.06);
+        }
+        .roomcard-head {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 0 8px;
+          border-bottom: 1px solid var(--divider-color);
+        }
+        .roompill {
+          display: inline-flex; align-items: center; gap: 7px;
+          min-width: 0; max-width: 100%;
+          padding: 5px 14px 5px 9px; border-radius: 999px;
+          background: rgba(var(--rgb-primary-color), .14);
+          color: var(--primary-color);
+          font-weight: 700; font-size: 1em; letter-spacing: .01em;
+        }
+        .roompill ha-icon { --mdc-icon-size: 18px; flex-shrink: 0; }
+        .roompill.none {
+          background: var(--secondary-background-color);
+          color: var(--secondary-text-color);
+        }
+        .roomname {
+          display: block; min-width: 0;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .roomname::first-letter { text-transform: uppercase; }
+        .roomcard-head .spacer { flex: 1; }
+        .roomcnt {
+          display: inline-flex; align-items: center; gap: 3px;
+          font-size: .72em; font-weight: 600;
+          color: var(--secondary-text-color);
+          background: var(--secondary-background-color);
+          border-radius: 10px; padding: 2px 8px;
+        }
+        .roomcnt ha-icon { --mdc-icon-size: 13px; }
+        .roomrows .row { padding: 8px 0; }
+        .roomrows .ico { width: 30px; height: 30px; }
+        @media (prefers-reduced-motion: reduce) {
+          .roomcard { transition: none; }
         }
         .row {
           display: flex; align-items: center; justify-content: space-between;
@@ -303,18 +377,6 @@ class RensonInputLinkCard extends HTMLElement {
           background: var(--card-background-color);
         }
         .roomhead:first-child { margin-top: 2px; }
-        .search {
-          display: flex; align-items: center; gap: 6px;
-          margin: 0 0 10px; padding: 0 10px;
-          background: var(--secondary-background-color);
-          border-radius: 12px;
-        }
-        .search ha-icon { --mdc-icon-size: 18px; color: var(--secondary-text-color); }
-        .search input {
-          flex: 1; border: none; background: transparent; outline: none;
-          padding: 10px 0; font: inherit; font-size: .9em;
-          color: var(--primary-text-color);
-        }
         .row.flash {
           animation: renson-press 1.2s ease-in-out 2;
           border-radius: 8px;
@@ -443,31 +505,13 @@ class RensonInputLinkCard extends HTMLElement {
         }
       </style>
       <ha-card>
-        ${(this._config.entities || []).length > 6 ? `
-        <div class="search">
-          <ha-icon icon="mdi:magnify"></ha-icon>
-          <input type="text" placeholder="${esc(this._t("gw_search"))}" value="${esc(this._filter)}">
-        </div>` : ""}
-        ${rows.join("")}
+        ${multi ? `<div class="roomgrid">${rows.join("")}</div>` : rows.join("")}
       </ha-card>
       <div class="overlay" style="display:none"></div>
     `;
     this.renderRoot.querySelectorAll("button.go").forEach((btn) => {
       btn.addEventListener("click", () => this._openDialog(btn.dataset.entity));
     });
-    const search = this.renderRoot.querySelector(".search input");
-    if (search) {
-      search.addEventListener("input", () => {
-        this._filter = search.value;
-        const pos = search.selectionStart;
-        this._render();
-        const again = this.renderRoot.querySelector(".search input");
-        if (again) {
-          again.focus();
-          again.setSelectionRange(pos, pos);
-        }
-      });
-    }
   }
 
   _openDialog(entityId) {

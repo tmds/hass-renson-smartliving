@@ -55,6 +55,9 @@ class RensonGatewayConfigCard extends HTMLElement {
       this._configureEmbedded();
       this._embConfigured = true;
     }
+    // The input event entities can show up after the card (e.g. right after
+    // a Home Assistant restart); configure the inputs card as soon as they do.
+    if (this._embConfigured) this._configureInputs();
     this._updateHeader();
     this._updateCounts();
     // Pass hass through to the embedded cards.
@@ -204,7 +207,7 @@ class RensonGatewayConfigCard extends HTMLElement {
       if (up !== "") data.timer_up = Number(up);
       if (down !== "") data.timer_down = Number(down);
       await this._hass.callService("renson_smartliving", "set_shutter_timings", data);
-      overlay.querySelector(".saved").textContent = esc(this._t("timings_saved"));
+      overlay.querySelector(".saved").textContent = this._t("timings_saved");
       setTimeout(() => overlay.close(), 900);
     });
   }
@@ -283,20 +286,25 @@ class RensonGatewayConfigCard extends HTMLElement {
     const groups = this._roomGroups(eids);
     const parts = [];
     for (const [area, list] of groups) {
-      parts.push(`<div class="roomhead">${esc(
-        area ? this._areaName(area) : this._t("no_room")
-      )}</div>`);
+      const areaInfo = area && this._hass.areas ? this._hass.areas[area] : null;
+      const areaIcon = (areaInfo && areaInfo.icon) || (area ? "mdi:door-open" : "mdi:help-circle-outline");
+      parts.push(`<div class="roomhead">
+        <span class="roompill${area ? "" : " none"}">
+          <ha-icon icon="${esc(areaIcon)}"></ha-icon>
+          <span class="roomname">${esc(area ? this._areaName(area) : this._t("no_room"))}</span>
+        </span>
+      </div>`);
       for (const eid of list) {
         const st = this._hass.states[eid];
         const attrs = st.attributes || {};
         const heating = attrs.hvac_action === "heating";
         const preset = this._presetText(attrs);
-        const sub = [
+        const temps = [
           attrs.current_temperature !== undefined
             ? fmtTemp(attrs.current_temperature) + "\u00B0" : "",
           attrs.temperature !== undefined ? "\u2192 " + fmtTemp(attrs.temperature) + "\u00B0" : "",
-          preset,
-        ].filter(Boolean).join(" · ");
+        ].filter(Boolean).join(" ");
+        const sub = [temps, preset].filter(Boolean).join(" · ");
         parts.push(`
           <div class="row" data-entity="${eid}">
             <span class="ico ${heating ? "heating" : ""}"><ha-icon icon="mdi:thermostat"></ha-icon></span>
@@ -316,12 +324,15 @@ class RensonGatewayConfigCard extends HTMLElement {
   }
 
   _openSchedule(eid) {
-    const overlay = openDialog(this, { title: shortName(this._hass, eid), bodyHTML: "" });
+    const overlay = openDialog(this, {
+      // The editor shows the thermostat name itself; avoid saying it twice.
+      title: this._t("gw_edit_schedule"), bodyHTML: "", wide: true,
+    });
     const body = overlay.querySelector(".dlg-body");
     const editor = document.createElement("renson-smartliving-thermostat-config-card");
     editor.setConfig({ entity: eid, embedded: true });
     editor.hass = this._hass;
-    body.style.padding = "0 0 8px";
+    body.style.padding = "4px 20px 20px";
     body.appendChild(editor);
     // Keep the editor's hass fresh while the dialog is open.
     const iv = setInterval(() => {
@@ -466,17 +477,34 @@ class RensonGatewayConfigCard extends HTMLElement {
         .tabbody { display: none; padding: 0 8px 8px; }
         .tabbody.active { display: block; }
         .rows {
-          border-radius: 12px;
-          background: var(--secondary-background-color);
-          padding: 2px 12px;
+          border-radius: 14px;
+          background: var(--card-background-color);
+          border: 1px solid var(--divider-color);
+          padding: 2px 16px;
         }
         .roomhead {
           position: sticky; top: 0; z-index: 1;
-          font-size: .72em; font-weight: 700; text-transform: uppercase;
-          letter-spacing: .05em; color: var(--secondary-text-color);
-          padding: 10px 2px 4px;
-          background: var(--secondary-background-color);
+          padding: 14px 0 6px;
+          background: var(--card-background-color);
         }
+        .roomhead:first-child { padding-top: 12px; }
+        .roompill {
+          display: inline-flex; align-items: center; gap: 7px;
+          max-width: 100%;
+          padding: 5px 14px 5px 9px; border-radius: 999px;
+          background: rgba(var(--rgb-primary-color), .14);
+          color: var(--primary-color);
+          font-weight: 700; font-size: .95em; letter-spacing: .01em;
+        }
+        .roompill ha-icon { --mdc-icon-size: 18px; flex-shrink: 0; }
+        .roompill.none {
+          background: var(--secondary-background-color);
+          color: var(--secondary-text-color);
+        }
+        .roompill .roomname {
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .roompill .roomname::first-letter { text-transform: uppercase; }
         .row {
           display: flex; align-items: center; gap: 10px;
           padding: 9px 0;
@@ -522,18 +550,6 @@ class RensonGatewayConfigCard extends HTMLElement {
           color: var(--secondary-text-color); font-size: .9em;
         }
         .empty ha-icon { --mdc-icon-size: 30px; display: block; margin: 0 auto 6px; }
-        .search {
-          display: flex; align-items: center; gap: 6px;
-          margin: 0 0 10px; padding: 0 12px;
-          background: var(--secondary-background-color);
-          border-radius: 12px;
-        }
-        .search ha-icon { --mdc-icon-size: 18px; color: var(--secondary-text-color); }
-        .search input {
-          flex: 1; border: none; background: transparent; outline: none;
-          padding: 10px 0; font: inherit; font-size: .9em;
-          color: var(--primary-text-color);
-        }
         .saved {
           display: block; text-align: center; margin-top: 8px;
           font-size: .85em; color: var(--primary-color); font-weight: 600;
@@ -596,6 +612,7 @@ class RensonGatewayConfigCard extends HTMLElement {
     this._screensSig = "";
     this._climateSig = "";
     this._embConfigured = false;
+    this._inputsConfigured = false;
     if (this._hass) {
       this._embConfigured = true;
       this._updateScreens();
@@ -604,17 +621,27 @@ class RensonGatewayConfigCard extends HTMLElement {
     }
   }
 
+  _configureInputs() {
+    if (this._inputsConfigured) return true;
+    const inputsCard = this.renderRoot.querySelector("#inputs-card");
+    if (!inputsCard) return false;
+    const entities = this._config.entities || this._omEntities("event");
+    // The input-link card throws on an empty list ("Please define
+    // entities"), which turns the whole dashboard card into a
+    // Configuration error. Wait until there is something to show.
+    if (!entities.length) return false;
+    inputsCard.setConfig({ entities, embedded: true });
+    inputsCard.hass = this._hass;
+    this._embedded = this._embedded || [];
+    this._embedded.push(inputsCard);
+    this._inputsConfigured = true;
+    return true;
+  }
+
   _configureEmbedded() {
     this._embedded = [];
-    const inputsCard = this.renderRoot.querySelector("#inputs-card");
-    if (inputsCard) {
-      inputsCard.setConfig({
-        entities: this._config.entities || this._omEntities("event"),
-        embedded: true,
-      });
-      inputsCard.hass = this._hass;
-      this._embedded.push(inputsCard);
-    }
+    this._inputsConfigured = false;
+    this._configureInputs();
     const automationsCard = this.renderRoot.querySelector("#automations-card");
     if (automationsCard) {
       automationsCard.setConfig({ embedded: true });

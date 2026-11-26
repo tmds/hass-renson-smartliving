@@ -18,7 +18,6 @@ const STRINGS = {
     gw_count_automations: "{n} automations",
     gw_count_screens: "{n} screens",
     gw_count_climate: "{n} thermostats",
-    gw_search: "Filter inputs",
     gw_edit_schedule: "Edit schedule",
     gw_no_climate: "No OpenMotics thermostats found",
     gw_away: "away",
@@ -181,7 +180,6 @@ const STRINGS = {
     gw_count_automations: "{n} automatiseringen",
     gw_count_screens: "{n} screens",
     gw_count_climate: "{n} thermostaten",
-    gw_search: "Ingangen filteren",
     gw_edit_schedule: "Schema bewerken",
     gw_no_climate: "Geen OpenMotics thermostaten gevonden",
     gw_away: "afwezig",
@@ -452,11 +450,22 @@ export function dialogCSS() {
   `;
 }
 
-export function openDialog(host, { title, bodyHTML = "", footerHTML = "" }) {
+export function openDialog(host, { title, bodyHTML = "", footerHTML = "", wide = false }) {
   const overlay = document.createElement("div");
   overlay.className = "dlg-overlay";
+  // The overlay lives in document.body, outside every card's shadow root,
+  // so it has to bring its own styles (the card's <style> does not reach it).
   overlay.innerHTML = `
-    <div class="dlg" role="dialog" aria-modal="true">
+    <style>${dialogCSS()}
+      .dlg.wide { width: 760px; }
+      .dlg-overlay { box-sizing: border-box; }
+      .dlg .saved {
+        display: block; text-align: center; margin-top: 8px;
+        font-size: .85em; color: var(--primary-color); font-weight: 600;
+      }
+      .dlg .saved:empty { display: none; }
+    </style>
+    <div class="dlg${wide ? " wide" : ""}" role="dialog" aria-modal="true">
       <div class="dlg-head">
         <h3>${esc(title)}</h3>
         <button class="dlg-close" aria-label="Close">&#215;</button>
@@ -527,6 +536,21 @@ export function scheduleStripHTML(entity) {
     .sort((a, b) => _sec(a.time) - _sec(b.time));
   if (!setpoints.length) return `<div class="sched"></div>`;
   const parts = [];
+  // The setpoint that is active at 00:00 is the last one of the previous
+  // day (fall back to today's last one). Without this the bar starts at
+  // the first setpoint and the left part of the day stays empty.
+  const prevKey = dayKeys[(dayKeys.indexOf(today) + 6) % 7];
+  const prevSetpoints = Object.entries(src[prevKey] || {})
+    .map(([time, temp]) => ({ time, temp: Number(temp) }))
+    .sort((a, b) => _sec(a.time) - _sec(b.time));
+  const carrySrc = prevSetpoints.length ? prevSetpoints : setpoints;
+  const carry = carrySrc[carrySrc.length - 1];
+  const firstFrom = _sec(setpoints[0].time);
+  if (firstFrom > 0) {
+    parts.push(
+      `<div style="left:0;width:${(firstFrom / 864).toFixed(3)}%;background:${_scheduleColor(carry.temp)}"></div>`
+    );
+  }
   for (let i = 0; i < setpoints.length; i++) {
     const from = _sec(setpoints[i].time);
     const to = i + 1 < setpoints.length ? _sec(setpoints[i + 1].time) : 86400;
