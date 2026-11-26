@@ -198,7 +198,7 @@ class RensonInputLinkCard extends HTMLElement {
 
   _render() {
     const lang = this._lang || "en";
-    const rows = this._config.entities.map((eid) => {
+    const makeRow = (eid) => {
       const linked = this._linked(eid);
       const st = this._hass && this._hass.states[eid];
       const extended = !!(st && st.attributes && st.attributes.has_extended_actions);
@@ -228,7 +228,30 @@ class RensonInputLinkCard extends HTMLElement {
           </div>
           <button class="go" data-entity="${eid}">${this._t("link")}</button>
         </div>`;
+    };
+    // Group rows by room (area). A standalone card in a room view shows a
+    // single group, so the headers only appear when there is more than one.
+    const groups = new Map();
+    for (const eid of this._config.entities || []) {
+      const area = this._roomOf(eid) || "";
+      if (!groups.has(area)) groups.set(area, []);
+      groups.get(area).push(eid);
+    }
+    const sortedAreas = [...groups.keys()].sort((a, b) => {
+      const an = a ? this._areaName(a) : this._t("no_room");
+      const bn = b ? this._areaName(b) : this._t("no_room");
+      return an.localeCompare(bn, lang);
     });
+    const multi = sortedAreas.length > 1;
+    const rows = [];
+    for (const area of sortedAreas) {
+      if (multi) {
+        rows.push(`<div class="roomhead">${esc(
+          area ? this._areaName(area) : this._t("no_room")
+        )}</div>`);
+      }
+      for (const eid of groups.get(area)) rows.push(makeRow(eid));
+    }
     this.renderRoot.innerHTML = `
       <style>
         :host { display: block; }
@@ -244,6 +267,12 @@ class RensonInputLinkCard extends HTMLElement {
           padding: 7px 0; gap: 10px;
         }
         .row + .row { border-top: 1px solid var(--divider-color, rgba(0,0,0,.06)); }
+        .roomhead {
+          font-size: .75em; font-weight: 700; text-transform: uppercase;
+          letter-spacing: .05em; color: var(--secondary-text-color);
+          margin: 12px 0 2px;
+        }
+        .roomhead:first-child { margin-top: 2px; }
         .row.flash {
           animation: renson-press 1.2s ease-in-out 2;
           border-radius: 8px;
