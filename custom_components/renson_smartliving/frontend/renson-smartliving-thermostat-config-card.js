@@ -34,10 +34,13 @@ class RensonThermostatConfigCard extends HTMLElement {
       throw new Error("Please define an entity");
     }
     this._config = config;
+    this._embeddedMode = !!config.embedded;
     this._selectedDay = "mon";
     this._edit = null;
     this._savedFlash = "";
-    this.renderRoot = this.attachShadow({ mode: "open" });
+    if (!this.renderRoot) {
+      this.renderRoot = this.attachShadow({ mode: "open" });
+    }
   }
 
   getCardSize() {
@@ -289,11 +292,11 @@ class RensonThermostatConfigCard extends HTMLElement {
       <style>
         :host { display: block; }
         ha-card {
-          padding: 20px;
+          padding: ${this._embeddedMode ? "0" : "20px"};
           border-radius: var(--ha-card-border-radius, 16px);
-          background: var(--card-background-color, var(--paper-card-background-color));
-          box-shadow: var(--ha-card-box-shadow, none);
-          border: 1px solid var(--divider-color, rgba(0,0,0,.08));
+          background: ${this._embeddedMode ? "transparent" : "var(--card-background-color, var(--paper-card-background-color))"};
+          box-shadow: ${this._embeddedMode ? "none" : "var(--ha-card-box-shadow, none)"};
+          border: ${this._embeddedMode ? "none" : "1px solid var(--divider-color, rgba(0,0,0,.08))"};
           display: block;
         }
         .warn { color: var(--error-color); padding: 8px; }

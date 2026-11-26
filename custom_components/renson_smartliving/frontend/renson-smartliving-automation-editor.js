@@ -196,7 +196,10 @@ class RensonAutomationEditor extends HTMLElement {
 
   setConfig(config) {
     this._config = config || {};
-    this.renderRoot = this.attachShadow({ mode: "open" });
+    this._embeddedMode = !!this._config.embedded;
+    if (!this.renderRoot) {
+      this.renderRoot = this.attachShadow({ mode: "open" });
+    }
     this._render();
   }
 
@@ -219,6 +222,10 @@ class RensonAutomationEditor extends HTMLElement {
         this._data = null;
       } else {
         this._data = resp;
+        this.dispatchEvent(new CustomEvent("gas-loaded", {
+          detail: { count: (resp.actions || []).filter((ga) => ga.name || ga.actions).length },
+          bubbles: true, composed: true,
+        }));
       }
     } catch (err) {
       this._error = String(err && err.message ? err.message : err);
@@ -339,6 +346,7 @@ class RensonAutomationEditor extends HTMLElement {
     const data = this._data;
     const rows = data
       ? (data.actions || []).filter((ga) => ga.name || ga.actions).map((ga) => `        <div class="row" data-id="${ga.id}">
+          <span class="ico"><ha-icon icon="mdi:robot"></ha-icon></span>
           <div class="rowmain">
             <div class="rowname">${ga.name ? esc(ga.name) : this._t("unnamed") + " #" + ga.id}
               ${ga.internal ? `<span class="tag warn">${this._t("tag_internal")}</span>` : ""}
@@ -359,8 +367,17 @@ class RensonAutomationEditor extends HTMLElement {
     this.renderRoot.innerHTML = `
       <style>
         :host { display: block; }
-        .card { background: var(--card-background-color, #fff); border-radius: 12px;
-                padding: 14px 16px; color: var(--primary-text-color, #111); }
+        .card { background: ${this._embeddedMode ? "transparent" : "var(--card-background-color, #fff)"}; border-radius: 12px;
+                padding: ${this._embeddedMode ? "0" : "14px 16px"}; color: var(--primary-text-color, #111); }
+        .row .ico {
+          width: 32px; height: 32px; border-radius: 50%;
+          background: rgba(var(--rgb-primary-color), .12);
+          color: var(--primary-color);
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+        }
+        .row .ico ha-icon { --mdc-icon-size: 17px; }
+        .row:hover { background: rgba(var(--rgb-primary-color), .04); }
         h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
         .row { display: flex; align-items: center; gap: 10px; padding: 9px 0;
                border-top: 1px solid var(--divider-color, #eee); }
@@ -428,7 +445,7 @@ class RensonAutomationEditor extends HTMLElement {
         .new { margin-top: 10px; }
       </style>
       <div class="card">
-        <h3>${esc(this._config.title || this._t("editor_title"))}</h3>
+        ${this._embeddedMode ? "" : `<h3>${esc(this._config.title || this._t("editor_title"))}</h3>`}
         ${this._error ? `<div class="err">${esc(this._error)}</div>` : ""}
         ${this._loading && !data ? `<div class="rowsum">${this._t("loading")}</div>` : rows}
         ${empty}

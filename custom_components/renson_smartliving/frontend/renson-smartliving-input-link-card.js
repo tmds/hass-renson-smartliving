@@ -151,7 +151,11 @@ class RensonInputLinkCard extends HTMLElement {
       throw new Error("Please define entities (input event entities)");
     }
     this._config = config;
-    this.renderRoot = this.attachShadow({ mode: "open" });
+    this._embeddedMode = !!config.embedded;
+    this._filter = "";
+    if (!this.renderRoot) {
+      this.renderRoot = this.attachShadow({ mode: "open" });
+    }
     this._render();
   }
 
@@ -222,6 +226,7 @@ class RensonInputLinkCard extends HTMLElement {
       }
       return `
         <div class="row ${flashing ? "flash" : ""}" data-entity="${eid}">
+          <span class="ico"><ha-icon icon="mdi:gesture-tap"></ha-icon></span>
           <div class="info">
             <div class="name">${esc(this._friendly(eid))}${flashing ? ' <ha-icon class="pressicon" icon="mdi:gesture-tap"></ha-icon>' : ""}</div>
             <div class="link ${linked ? "on" : ""}">${linkText}</div>
@@ -229,10 +234,24 @@ class RensonInputLinkCard extends HTMLElement {
           <button class="go" data-entity="${eid}">${this._t("link")}</button>
         </div>`;
     };
+    // Optional filter (search box): match on input name, room or linked target.
+    let visible = this._config.entities || [];
+    if (this._filter) {
+      const q = this._filter.toLowerCase();
+      visible = visible.filter((eid) => {
+        const st = this._hass && this._hass.states[eid];
+        const name = (st && st.attributes && st.attributes.friendly_name) || eid;
+        const area = this._roomOf(eid) ? this._areaName(this._roomOf(eid)) : "";
+        const linked = this._linked(eid);
+        const target = linked ? ((this._hass.states[linked] || {}).attributes || {}).friendly_name || "" : "";
+        return name.toLowerCase().includes(q) || area.toLowerCase().includes(q)
+          || target.toLowerCase().includes(q);
+      });
+    }
     // Group rows by room (area). A standalone card in a room view shows a
     // single group, so the headers only appear when there is more than one.
     const groups = new Map();
-    for (const eid of this._config.entities || []) {
+    for (const eid of visible) {
       const area = this._roomOf(eid) || "";
       if (!groups.has(area)) groups.set(area, []);
       groups.get(area).push(eid);
@@ -256,23 +275,46 @@ class RensonInputLinkCard extends HTMLElement {
       <style>
         :host { display: block; }
         ha-card {
-          padding: 12px 14px;
-          background: var(--card-background-color);
+          padding: ${this._embeddedMode ? "0" : "12px 14px"};
+          background: ${this._embeddedMode ? "transparent" : "var(--card-background-color)"};
           border-radius: var(--ha-card-border-radius, 12px);
-          box-shadow: var(--ha-card-box-shadow, none);
+          box-shadow: ${this._embeddedMode ? "none" : "var(--ha-card-box-shadow, none)"};
           border: 1px solid var(--divider-color, rgba(0,0,0,.1));
         }
         .row {
           display: flex; align-items: center; justify-content: space-between;
           padding: 7px 0; gap: 10px;
         }
+        .row .info { flex: 1; min-width: 0; }
         .row + .row { border-top: 1px solid var(--divider-color, rgba(0,0,0,.06)); }
+        .ico {
+          width: 32px; height: 32px; border-radius: 50%;
+          background: rgba(var(--rgb-primary-color), .12);
+          color: var(--primary-color);
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+        }
+        .ico ha-icon { --mdc-icon-size: 17px; }
         .roomhead {
-          font-size: .75em; font-weight: 700; text-transform: uppercase;
+          position: sticky; top: 0; z-index: 1;
+          font-size: .72em; font-weight: 700; text-transform: uppercase;
           letter-spacing: .05em; color: var(--secondary-text-color);
-          margin: 12px 0 2px;
+          padding: 10px 2px 4px;
+          background: var(--card-background-color);
         }
         .roomhead:first-child { margin-top: 2px; }
+        .search {
+          display: flex; align-items: center; gap: 6px;
+          margin: 0 0 10px; padding: 0 10px;
+          background: var(--secondary-background-color);
+          border-radius: 12px;
+        }
+        .search ha-icon { --mdc-icon-size: 18px; color: var(--secondary-text-color); }
+        .search input {
+          flex: 1; border: none; background: transparent; outline: none;
+          padding: 10px 0; font: inherit; font-size: .9em;
+          color: var(--primary-text-color);
+        }
         .row.flash {
           animation: renson-press 1.2s ease-in-out 2;
           border-radius: 8px;
@@ -401,6 +443,11 @@ class RensonInputLinkCard extends HTMLElement {
         }
       </style>
       <ha-card>
+        ${(this._config.entities || []).length > 6 ? `
+        <div class="search">
+          <ha-icon icon="mdi:magnify"></ha-icon>
+          <input type="text" placeholder="${esc(this._t("gw_search"))}" value="${esc(this._filter)}">
+        </div>` : ""}
         ${rows.join("")}
       </ha-card>
       <div class="overlay" style="display:none"></div>
@@ -408,6 +455,19 @@ class RensonInputLinkCard extends HTMLElement {
     this.renderRoot.querySelectorAll("button.go").forEach((btn) => {
       btn.addEventListener("click", () => this._openDialog(btn.dataset.entity));
     });
+    const search = this.renderRoot.querySelector(".search input");
+    if (search) {
+      search.addEventListener("input", () => {
+        this._filter = search.value;
+        const pos = search.selectionStart;
+        this._render();
+        const again = this.renderRoot.querySelector(".search input");
+        if (again) {
+          again.focus();
+          again.setSelectionRange(pos, pos);
+        }
+      });
+    }
   }
 
   _openDialog(entityId) {

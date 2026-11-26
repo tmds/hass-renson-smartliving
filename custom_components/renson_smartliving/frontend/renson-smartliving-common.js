@@ -10,6 +10,23 @@ const STRINGS = {
     hvac_mode_heating: "HVAC mode: heating",
     hvac_mode_cooling: "HVAC mode: cooling",
     screen_timings: "Configure screen timings",
+    gw_title: "Gateway configuration",
+    gw_connected: "Connected",
+    gw_unavailable: "Unavailable",
+    gw_select_gateway: "Gateway",
+    gw_count_inputs: "{n} inputs",
+    gw_count_automations: "{n} automations",
+    gw_count_screens: "{n} screens",
+    gw_count_climate: "{n} thermostats",
+    gw_search: "Filter inputs",
+    gw_edit_schedule: "Edit schedule",
+    gw_no_climate: "No OpenMotics thermostats found",
+    gw_away: "away",
+    gw_manual_until: "manual until {time}",
+    gw_tab_inputs: "Inputs",
+    gw_tab_automations: "Automations",
+    gw_tab_screens: "Screens",
+    gw_tab_climate: "Thermostats",
     screen_timings_short: "Timers",
     timer_up_short: "up",
     timer_down_short: "down",
@@ -156,6 +173,23 @@ const STRINGS = {
     hvac_mode_heating: "HVAC-modus: verwarming",
     hvac_mode_cooling: "HVAC-modus: koeling",
     screen_timings: "Screentimers instellen",
+    gw_title: "Gatewayconfiguratie",
+    gw_connected: "Verbonden",
+    gw_unavailable: "Niet beschikbaar",
+    gw_select_gateway: "Gateway",
+    gw_count_inputs: "{n} ingangen",
+    gw_count_automations: "{n} automatiseringen",
+    gw_count_screens: "{n} screens",
+    gw_count_climate: "{n} thermostaten",
+    gw_search: "Ingangen filteren",
+    gw_edit_schedule: "Schema bewerken",
+    gw_no_climate: "Geen OpenMotics thermostaten gevonden",
+    gw_away: "afwezig",
+    gw_manual_until: "handmatig tot {time}",
+    gw_tab_inputs: "Ingangen",
+    gw_tab_automations: "Automatiseringen",
+    gw_tab_screens: "Screens",
+    gw_tab_climate: "Thermostaten",
     screen_timings_short: "Timers",
     timer_up_short: "op",
     timer_down_short: "neer",
@@ -345,4 +379,166 @@ export function dayLabels(lang) {
 export function dayLabel(lang, key) {
   const pair = dayLabels(lang).find(([d]) => d === key);
   return pair ? pair[1] : key;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared dialog                                                        */
+/*                                                                      */
+/* One overlay/dialog look for every card in this integration: rounded  */
+/* panel, header with title + close button, scrollable body, footer     */
+/* with a right-aligned primary button. Close on Escape and backdrop    */
+/* click. openDialog returns the overlay element; the caller wires its  */
+/* own buttons and calls overlay.close().                               */
+/* ------------------------------------------------------------------ */
+
+export function dialogCSS() {
+  return `
+    .dlg-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,.5);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    .dlg {
+      position: relative; width: 420px; max-width: 94vw;
+      max-height: 88vh; display: flex; flex-direction: column;
+      background: var(--card-background-color);
+      border-radius: var(--ha-card-border-radius, 16px);
+      box-shadow: 0 12px 40px rgba(0,0,0,.35);
+      color: var(--primary-text-color);
+      font-family: inherit;
+    }
+    .dlg-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: 14px 16px 10px;
+    }
+    .dlg-head h3 {
+      margin: 0; flex: 1; font-size: 1em; font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .dlg-close {
+      border: none; background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+      width: 32px; height: 32px; border-radius: 50%;
+      cursor: pointer; font-size: 1.05em; flex-shrink: 0;
+    }
+    .dlg-body { padding: 0 16px; overflow-y: auto; }
+    .dlg-foot {
+      padding: 12px 16px 14px; display: flex;
+      justify-content: flex-end; gap: 8px;
+    }
+    .dlg-primary {
+      border: none; border-radius: 12px; padding: 10px 22px;
+      background: var(--primary-color);
+      color: var(--text-primary-color, #fff);
+      font: inherit; font-weight: 600; cursor: pointer;
+    }
+    .dlg-field {
+      display: block; font-size: .78em; font-weight: 600;
+      color: var(--secondary-text-color); margin: 12px 0 4px;
+    }
+    .dlg-input-wrap { position: relative; display: flex; align-items: center; }
+    .dlg-input-suffix {
+      margin-left: 8px; font-size: .85em;
+      color: var(--secondary-text-color);
+    }
+    .dlg input.dlg-input {
+      width: 100%; box-sizing: border-box;
+      border: 1px solid var(--divider-color);
+      border-radius: 10px; padding: 10px 12px;
+      font-size: 1em; background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+    }
+  `;
+}
+
+export function openDialog(host, { title, bodyHTML = "", footerHTML = "" }) {
+  const overlay = document.createElement("div");
+  overlay.className = "dlg-overlay";
+  overlay.innerHTML = `
+    <div class="dlg" role="dialog" aria-modal="true">
+      <div class="dlg-head">
+        <h3>${esc(title)}</h3>
+        <button class="dlg-close" aria-label="Close">&#215;</button>
+      </div>
+      <div class="dlg-body">${bodyHTML}</div>
+      ${footerHTML ? `<div class="dlg-foot">${footerHTML}</div>` : ""}
+    </div>`;
+  const close = () => {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape") close();
+  };
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  overlay.querySelector(".dlg-close").addEventListener("click", close);
+  document.addEventListener("keydown", onKey);
+  overlay.close = close;
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+/* ------------------------------------------------------------------ */
+/* Schedule strip: today's heating schedule as a colored bar with a     */
+/* "now" marker. Shared by the thermostat tile card and the gateway     */
+/* configuration card's Thermostats tab.                                */
+/* ------------------------------------------------------------------ */
+
+function _sec(t) {
+  const [h, m] = String(t).split(":").map(Number);
+  return (h || 0) * 3600 + (m || 0) * 60;
+}
+
+function _scheduleColor(temp) {
+  const stops = [
+    [255, 224, 130],
+    [255, 183, 77],
+    [255, 112, 67],
+  ];
+  const min = 8, max = 24;
+  const t = Math.max(0, Math.min(1, (temp - min) / (max - min)));
+  const seg = t < 0.5 ? 0 : 1;
+  const f = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
+  const a = stops[seg], b = stops[seg + 1];
+  const c = a.map((v, i) => Math.round(v + (b[i] - v) * f));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+export function scheduleStripCSS() {
+  return `
+    .sched { position: relative; height: 10px; border-radius: 5px;
+             overflow: hidden; background: var(--secondary-background-color); }
+    .sched div { position: absolute; top: 0; bottom: 0; }
+    .sched .nowmark { top: -2px; bottom: -2px; width: 2px;
+                      background: var(--primary-text-color); opacity: .8; }
+  `;
+}
+
+export function scheduleStripHTML(entity) {
+  const attrs = (entity && entity.attributes) || {};
+  const src = attrs.heating_schedule || {};
+  const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  const today = dayKeys[(new Date().getDay() + 6) % 7];
+  const setpoints = Object.entries(src[today] || {})
+    .map(([time, temp]) => ({ time, temp: Number(temp) }))
+    .sort((a, b) => _sec(a.time) - _sec(b.time));
+  if (!setpoints.length) return `<div class="sched"></div>`;
+  const parts = [];
+  for (let i = 0; i < setpoints.length; i++) {
+    const from = _sec(setpoints[i].time);
+    const to = i + 1 < setpoints.length ? _sec(setpoints[i + 1].time) : 86400;
+    parts.push(
+      `<div style="left:${(from / 864).toFixed(3)}%;width:${((to - from) / 864).toFixed(3)}%;background:${_scheduleColor(setpoints[i].temp)}"></div>`
+    );
+  }
+  const nowPct = ((new Date().getHours() * 60 + new Date().getMinutes()) / 1440) * 100;
+  parts.push(`<div class="nowmark" style="left:${nowPct.toFixed(3)}%"></div>`);
+  return `<div class="sched">${parts.join("")}</div>`;
+}
+
+export function fmtTemp(t) {
+  return t === undefined || t === null ? "?" : Number(t).toFixed(1).replace(/\.0$/, "");
 }
