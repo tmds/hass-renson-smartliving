@@ -523,6 +523,14 @@ export function scheduleStripCSS() {
     .sched div { position: absolute; top: 0; bottom: 0; }
     .sched .nowmark { top: -2px; bottom: -2px; width: 2px;
                       background: var(--primary-text-color); opacity: .8; }
+    .schedlabels { position: relative; height: 12px;
+                   font-size: .65em; color: var(--secondary-text-color);
+                   margin-top: 3px; }
+    .schedlabels span { position: absolute; top: 0; left: 0; }
+    .schedlabels span:nth-child(2) { left: 25%; transform: translateX(-50%); }
+    .schedlabels span:nth-child(3) { left: 50%; transform: translateX(-50%); }
+    .schedlabels span:nth-child(4) { left: 75%; transform: translateX(-50%); }
+    .schedlabels span:nth-child(5) { left: auto; right: 0; }
   `;
 }
 
@@ -534,7 +542,8 @@ export function scheduleStripHTML(entity) {
   const setpoints = Object.entries(src[today] || {})
     .map(([time, temp]) => ({ time, temp: Number(temp) }))
     .sort((a, b) => _sec(a.time) - _sec(b.time));
-  if (!setpoints.length) return `<div class="sched"></div>`;
+  const labels = `<div class="schedlabels"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>`;
+  if (!setpoints.length) return `<div class="sched"></div>${labels}`;
   const parts = [];
   // The setpoint that is active at 00:00 is the last one of the previous
   // day (fall back to today's last one). Without this the bar starts at
@@ -560,7 +569,7 @@ export function scheduleStripHTML(entity) {
   }
   const nowPct = ((new Date().getHours() * 60 + new Date().getMinutes()) / 1440) * 100;
   parts.push(`<div class="nowmark" style="left:${nowPct.toFixed(3)}%"></div>`);
-  return `<div class="sched">${parts.join("")}</div>`;
+  return `<div class="sched">${parts.join("")}</div>${labels}`;
 }
 
 export function fmtTemp(t) {
