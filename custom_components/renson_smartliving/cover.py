@@ -107,21 +107,6 @@ class OpenMoticsCover(OpenMoticsEntity, CoverEntity):
             return None
         return pos == 0
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose travel timers for UI cards."""
-        config = self._shutter_config() or {}
-        return {
-            "timer_up": config.get("timer_up"),
-            "timer_down": config.get("timer_down"),
-        }
-
-    def _shutter_config(self) -> dict[str, Any] | None:
-        for shutter in self.coordinator.shutters:
-            if shutter.get("id") == self._shutter_id:
-                return shutter
-        return None
-
     async def async_open_cover(self, **kwargs: Any) -> None:
         await self.coordinator.client.shutter_up(self._shutter_id)
 

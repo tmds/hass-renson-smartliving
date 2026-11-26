@@ -62,7 +62,7 @@ async def test_options_flow_sets_preset_expiration(
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {"min_dim_levels": "", "preset_expiration_hours": 3},
+        {"preset_expiration_hours": 3},
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -78,7 +78,7 @@ async def test_options_flow_preset_expiration_defaults_and_zero(
     result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {"min_dim_levels": ""},
+        {},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"]["preset_expiration_hours"] == DEFAULT_PRESET_EXPIRATION_HOURS
@@ -86,7 +86,7 @@ async def test_options_flow_preset_expiration_defaults_and_zero(
     result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {"min_dim_levels": "", "preset_expiration_hours": 0},
+        {"preset_expiration_hours": 0},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"]["preset_expiration_hours"] == 0
@@ -101,5 +101,5 @@ async def test_options_flow_rejects_out_of_range(
     with pytest.raises(InvalidData):
         await hass.config_entries.options.async_configure(
             result["flow_id"],
-            {"min_dim_levels": "", "preset_expiration_hours": 99},
+            {"preset_expiration_hours": 99},
         )

@@ -1,9 +1,6 @@
-import "./renson-smartliving-automation-editor.js";
-import "./renson-smartliving-input-link-card.js";
+import "./renson-smartliving-common.js";
 import "./renson-smartliving-room-card.js";
 import "./renson-smartliving-rooms-grid.js";
 import "./renson-smartliving-schedule-button.js";
-import "./renson-smartliving-screen-card.js";
-import "./renson-smartliving-screen-timings-button.js";
 import "./renson-smartliving-thermostat-card.js";
 import "./renson-smartliving-thermostat-config-card.js";

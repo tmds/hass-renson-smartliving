@@ -4,13 +4,13 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import voluptuous as vol
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
@@ -18,8 +18,6 @@ from homeassistant.helpers.typing import ConfigType
 from .api import OpenMoticsClient
 from .const import CONF_HOST, DAY_KEYS, DOMAIN, PLATFORMS
 from .coordinator import GatewayInfo, OpenMoticsCoordinator
-from .event import _has_extended_actions
-from .group_actions import parse_actions, validate_actions
 from .sync import SyncLoop
 
 _LOGGER = logging.getLogger(__name__)
@@ -60,222 +58,6 @@ SERVICE_SET_CONFIG_SCHEMA = vol.Schema(
         vol.Optional("lead_time"): vol.Coerce(int),
     }
 )
-
-SERVICE_SET_INPUT_LINK_SCHEMA = vol.Schema(
-    {
-        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
-        vol.Optional("output_entity"): cv.entity_id,
-        vol.Optional("output_id"): int,
-        vol.Optional("group_action_id"): vol.All(
-            vol.Coerce(int), vol.Range(min=0, max=255)
-        ),
-        vol.Optional("group_action_id_long"): vol.All(
-            vol.Coerce(int), vol.Range(min=0, max=255)
-        ),
-        vol.Optional("force"): bool,
-    }
-)
-
-SERVICE_SET_SHUTTER_TIMINGS_SCHEMA = vol.Schema(
-    {
-        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
-        vol.Optional("timer_up"): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
-        vol.Optional("timer_down"): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
-    }
-)
-
-SERVICE_SAVE_GROUP_ACTION_SCHEMA = vol.Schema(
-    {
-        vol.Required("id"): vol.Coerce(int),
-        vol.Optional("name"): vol.All(str, vol.Length(max=16)),
-        vol.Optional("actions"): str,
-        vol.Optional("show_in_app"): bool,
-    }
-)
-
-SERVICE_RUN_GROUP_ACTION_SCHEMA = vol.Schema(
-    {
-        vol.Required("id"): vol.Coerce(int),
-    }
-)
-
-
-def _resolve_om_entity(
-    hass: HomeAssistant, entity_id: str
-) -> tuple[OpenMoticsCoordinator, Any]:
-    """Resolve any OpenMotics entity id to its coordinator and entity object."""
-    registry: dict[str, Any] = hass.data.setdefault(DOMAIN, {}).setdefault(
-        "om_entities", {}
-    )
-    entity = registry.get(entity_id)
-    if entity is None:
-        raise ValueError(f"Unknown OpenMotics entity: {entity_id}")
-    return entity.coordinator, entity
-
-
-def _resolve_any_coordinator(
-    hass: HomeAssistant,
-) -> OpenMoticsCoordinator:
-    """Resolve the coordinator of any loaded OpenMotics config entry."""
-    for entry in hass.config_entries.async_entries(DOMAIN):
-        runtime = getattr(entry, "runtime_data", None)
-        coordinator = getattr(runtime, "coordinator", None)
-        if coordinator is not None:
-            return cast("OpenMoticsCoordinator", coordinator)
-    raise ValueError("No loaded OpenMotics config entry found")
-
-
-def _resolve_output_id(
-    hass: HomeAssistant,
-    output_entity: str | None,
-    output_id: int | None,
-) -> int | None:
-    """Resolve the target output id; None means unlink."""
-    if output_id is not None:
-        return output_id
-    if output_entity is None:
-        return None
-    _coordinator, entity = _resolve_om_entity(hass, output_entity)
-    domain = entity.entity_id.split(".")[0]
-    if domain not in ("light", "switch", "cover"):
-        raise ValueError(
-            f"{output_entity} is not an OpenMotics light, switch or cover"
-        )
-    output = cast("int | None", entity._om_id)  # noqa: SLF001
-    if output is None:
-        raise ValueError(f"{output_entity} has no OpenMotics output id")
-    return output
-
-
-def _update_input_config(
-    coordinator: OpenMoticsCoordinator,
-    input_id: int,
-    action: int | None,
-    basic_actions: str | None = None,
-) -> None:
-    """Merge the written action into the local input config cache."""
-    for inp in coordinator.inputs:
-        if inp.get("id") == input_id:
-            inp["action"] = action
-            if basic_actions is not None:
-                inp["basic_actions"] = basic_actions
-            break
-    coordinator.async_set_updated_data(coordinator.data)
-
-
-async def _async_set_input_link(call: ServiceCall) -> None:
-    output_entity_id = call.data.get("output_entity")
-    output_id = _resolve_output_id(
-        call.hass,
-        output_entity_id,
-        call.data.get("output_id"),
-    )
-    group_action_id = call.data.get("group_action_id")
-    group_action_id_long = call.data.get("group_action_id_long")
-    action = 255 if output_id is None else output_id
-    for entity_id in call.data[ATTR_ENTITY_ID]:
-        coordinator, entity = _resolve_om_entity(call.hass, entity_id)
-        if entity.entity_id.split(".")[0] != "event":
-            raise ValueError(f"{entity_id} is not an OpenMotics input (event)")
-        input_id = entity.input_id
-        # The gateway serializer resets missing fields to their defaults, so
-        # basic_actions MUST be sent along or extended input actions (timers,
-        # group actions, ...) on the input would be wiped.
-        current = next(
-            (inp for inp in coordinator.inputs if inp.get("id") == input_id),
-            None,
-        )
-        if (
-            current is not None
-            and _has_extended_actions(current)
-            and not call.data.get("force")
-        ):
-            raise ValueError(
-                f"{entity_id} has extended gateway actions (timers, group "
-                "actions, ...). Linking OR unlinking it erases those actions "
-                "on the gateway. Repeat with force=true to overwrite them."
-            )
-        config: dict[str, Any] = {"id": input_id, "action": action}
-        # A group action link uses the extended encoding: action 240 with
-        # basic_actions. Short press only keeps the simple "2,<id>" (run
-        # group action on press). Long press uses opcode 207
-        # (the gateway's long-press hold slot). Both together use the 8-byte
-        # combined form the gateway itself writes:
-        #   207,<long>,236,0,2,<short>,236,255
-        # (207 slot = long press, the 236,0,2,N,236,255 tail = on release).
-        if group_action_id_long is not None and group_action_id is not None:
-            config["action"] = 240
-            config["basic_actions"] = (
-                f"207,{group_action_id_long},"
-                f"236,0,2,{group_action_id},236,255"
-            )
-        elif group_action_id_long is not None:
-            config["action"] = 240
-            config["basic_actions"] = f"207,{group_action_id_long}"
-        elif group_action_id is not None:
-            config["action"] = 240
-            config["basic_actions"] = f"2,{group_action_id}"
-        # Covers (screens/shutters) cannot be toggled as a plain output: they
-        # get the classic shutter toggle action 103,<shutter> (up/stop/down).
-        elif output_entity_id and output_entity_id.split(".")[0] == "cover":
-            config["action"] = 240
-            config["basic_actions"] = f"103,{output_id}"
-        elif current is not None and current.get("basic_actions"):
-            config["basic_actions"] = current["basic_actions"]
-        await coordinator.client.set_input_configuration(config)
-        _update_input_config(
-            coordinator,
-            input_id,
-            None if config["action"] == 255 else config["action"],
-            config.get("basic_actions"),
-        )
-        _LOGGER.info(
-            "Input link updated for %s (input %d): action=%s basic_actions=%s",
-            entity_id,
-            input_id,
-            config["action"],
-            config.get("basic_actions", ""),
-        )
-
-
-async def _async_set_shutter_timings(call: ServiceCall) -> None:
-    """Update the travel timers of an OpenMotics shutter (cover)."""
-    for entity_id in call.data[ATTR_ENTITY_ID]:
-        coordinator, entity = _resolve_om_entity(call.hass, entity_id)
-        if entity.entity_id.split(".")[0] != "cover":
-            raise ValueError(f"{entity_id} is not an OpenMotics shutter (cover)")
-        shutter_id = cast("int", entity._om_id)  # noqa: SLF001
-        current = next(
-            (s for s in coordinator.shutters if s.get("id") == shutter_id),
-            None,
-        )
-        if current is None:
-            raise ValueError(f"No shutter configuration found for {entity_id}")
-        # the gateway serializer resets missing fields to defaults, so the
-        # COMPLETE current config must be sent, merged with the new timers
-        config = dict(current)
-        if "timer_up" in call.data:
-            config["timer_up"] = call.data["timer_up"]
-        if "timer_down" in call.data:
-            config["timer_down"] = call.data["timer_down"]
-        await coordinator.client.set_shutter_configuration(config)
-        current.update(
-            {
-                k: config[k]
-                for k in ("timer_up", "timer_down")
-                if k in config
-            }
-        )
-        coordinator.async_set_updated_data(coordinator.data)
-        _LOGGER.info(
-            "Shutter timings updated for %s (shutter %d): up=%s down=%s",
-            entity_id,
-            shutter_id,
-            config.get("timer_up"),
-            config.get("timer_down"),
-        )
-
-
 
 def _resolve_thermostat(
     hass: HomeAssistant, entity_id: str
@@ -394,46 +176,6 @@ async def _async_set_config(call: ServiceCall) -> None:
         )
 
 
-async def _async_get_group_actions(call: ServiceCall) -> dict[str, Any]:
-    """Read all gateway group actions plus device name maps for the editor."""
-    coordinator = _resolve_any_coordinator(call.hass)
-    actions = await coordinator.client.get_group_action_configurations()
-    return {
-        "actions": actions,
-        "outputs": coordinator.outputs,
-        "shutters": coordinator.shutters,
-        "inputs": coordinator.inputs,
-    }
-
-
-async def _async_save_group_action(call: ServiceCall) -> None:
-    """Write a single gateway group action (automation)."""
-    coordinator = _resolve_any_coordinator(call.hass)
-    config: dict[str, Any] = {"id": call.data["id"]}
-    if "name" in call.data:
-        config["name"] = call.data["name"]
-    if "show_in_app" in call.data:
-        config["show_in_app"] = call.data["show_in_app"]
-    if "actions" in call.data:
-        values = parse_actions(call.data["actions"])
-        validate_actions(values)
-        config["actions"] = call.data["actions"]
-    await coordinator.client.set_group_action_configuration(config)
-    _LOGGER.info(
-        "Group action %d saved: name=%r actions=%r",
-        config["id"],
-        config.get("name"),
-        config.get("actions"),
-    )
-
-
-async def _async_run_group_action(call: ServiceCall) -> None:
-    """Trigger a gateway group action by id."""
-    coordinator = _resolve_any_coordinator(call.hass)
-    await coordinator.client.do_group_action(call.data["id"])
-    _LOGGER.info("Group action %d triggered", call.data["id"])
-
-
 FRONTEND_URL_BASE = "/renson_smartliving"
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 _MANIFEST_VERSION = json.loads(
@@ -467,37 +209,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         "set_thermostat_config",
         _async_set_config,
         schema=SERVICE_SET_CONFIG_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "set_input_link",
-        _async_set_input_link,
-        schema=SERVICE_SET_INPUT_LINK_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "set_shutter_timings",
-        _async_set_shutter_timings,
-        schema=SERVICE_SET_SHUTTER_TIMINGS_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "get_group_actions",
-        _async_get_group_actions,
-        schema=vol.Schema({}),
-        supports_response=SupportsResponse.ONLY,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "save_group_action",
-        _async_save_group_action,
-        schema=SERVICE_SAVE_GROUP_ACTION_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "run_group_action",
-        _async_run_group_action,
-        schema=SERVICE_RUN_GROUP_ACTION_SCHEMA,
     )
     return True
 
