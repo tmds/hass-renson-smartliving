@@ -5,16 +5,14 @@
  *  - Inputs:   link wall buttons to outputs / gateway automations
  *  - Automations: visual editor for the gateway's group actions
  *  - Screens:  travel timers (timer up / timer down) per screen
- *  - Dimming:  per-output minimum dim levels
  *
  * The Inputs and Automations tabs reuse the standalone cards as building
- * blocks; this card only adds the tab shell, the screen timers list and
- * the dimming panel.
+ * blocks; this card only adds the tab shell and the screen timers list.
  */
 import "./renson-smartliving-common.js";
 import "./renson-smartliving-input-link-card.js";
 import "./renson-smartliving-automation-editor.js";
-import { t, esc } from "./renson-smartliving-common.js";
+import { t, esc, shortName } from "./renson-smartliving-common.js";
 
 class RensonGatewayConfigCard extends HTMLElement {
   static getStubConfig() {
@@ -77,7 +75,7 @@ class RensonGatewayConfigCard extends HTMLElement {
     const attrs = (st && st.attributes) || {};
     const overlay = this.renderRoot.querySelector(".timings-overlay");
     overlay.style.display = "flex";
-    overlay.querySelector("h3").textContent = shortTitle(this._hass, eid);
+    overlay.querySelector("h3").textContent = shortName(this._hass, eid);
     overlay.querySelector(".up").value =
       attrs.timer_up !== undefined && attrs.timer_up !== null ? attrs.timer_up : "";
     overlay.querySelector(".down").value =
@@ -101,93 +99,6 @@ class RensonGatewayConfigCard extends HTMLElement {
 
   /* -- Dimming tab helpers ------------------------------------------- */
 
-  _dimmableLights() {
-    return this._omEntities("light").filter((eid) => {
-      const st = this._hass.states[eid];
-      return st && st.attributes
-        && Array.isArray(st.attributes.supported_color_modes)
-        && st.attributes.supported_color_modes.some((m) => m !== "onoff");
-    });
-  }
-
-  _currentMinDim() {
-    return (this._dimOptions && this._dimOptions.min_dim_levels) || "";
-  }
-
-  async _fetchOptions() {
-    if (!this._hass || this._optionsLoading) return;
-    this._optionsLoading = true;
-    try {
-      const entries = await this._hass.callWS({ type: "config_entries/get" });
-      const entry = (entries || []).find(
-        (e) => e.domain === "renson_smartliving"
-      );
-      if (entry) {
-        this._entryId = entry.entry_id;
-        this._dimOptions = entry.options || {};
-      }
-    } catch (err) {
-      // non-fatal: the tab shows a hint instead of the rows
-    }
-    this._optionsLoading = false;
-    if (this._tab === "dimming") this._renderDimRows();
-  }
-
-  async _saveDimLevels() {
-    const levels = [];
-    for (const row of this.renderRoot.querySelectorAll(".dim-row")) {
-      const eid = row.dataset.entity;
-      const val = row.querySelector("input").value.trim();
-      if (val === "") continue;
-      levels.push({
-        entity_id: eid,
-        percent: Math.max(0, Math.min(100, Number(val))),
-      });
-    }
-    if (!levels.length) return;
-    try {
-      await this._hass.callService(
-        "renson_smartliving", "set_min_dim_levels", { levels }
-      );
-      this.renderRoot.querySelector(".dim-saved").textContent =
-        this._t("dim_saved");
-      setTimeout(() => {
-        const el = this.renderRoot.querySelector(".dim-saved");
-        if (el) el.textContent = "";
-      }, 2000);
-    } catch (err) {
-      this.renderRoot.querySelector(".dim-saved").textContent =
-        this._t("dim_save_failed");
-    }
-  }
-
-  _renderDimRows() {
-    const wrap = this.renderRoot.querySelector(".dim-rows");
-    if (!wrap) return;
-    const parsed = {};
-    for (const part of String(this._currentMinDim()).split(",")) {
-      const [oid, pct] = part.split(":");
-      if (oid && pct) parsed[Number(oid)] = Number(pct);
-    }
-    const lights = this._dimmableLights();
-    if (!lights.length) {
-      wrap.innerHTML = `<div class="hint">${esc(this._t("dim_no_lights"))}</div>`;
-      return;
-    }
-    wrap.innerHTML = lights.map((eid) => {
-      const st = this._hass.states[eid];
-      const cur = st && st.attributes ? st.attributes.min_dim : 0;
-      const val = cur && cur > 0 ? cur : "";
-      return `
-        <div class="dim-row" data-entity="${eid}">
-          <div class="name">${esc(shortTitle(this._hass, eid))}</div>
-          <input type="number" min="0" max="100" step="1" value="${val}"
-                 placeholder="0">
-          <span class="pct">%</span>
-        </div>`;
-    }).join("");
-  }
-
   /* -- Rendering ------------------------------------------------------ */
 
   _render() {
@@ -196,7 +107,6 @@ class RensonGatewayConfigCard extends HTMLElement {
       ["inputs", "gw_tab_inputs"],
       ["automations", "gw_tab_automations"],
       ["screens", "gw_tab_screens"],
-      ["dimming", "gw_tab_dimming"],
     ];
     const covers = this._tab === "screens" && this._hass ? this._covers() : [];
     this.renderRoot.innerHTML = `
@@ -244,33 +154,6 @@ class RensonGatewayConfigCard extends HTMLElement {
           font: inherit; font-size: .82em; font-weight: 600;
         }
         .cover-row button:hover { border-color: var(--primary-color); }
-        .dim-row {
-          display: flex; align-items: center; gap: 8px;
-          padding: 7px 4px; border-bottom: 1px solid var(--divider-color);
-        }
-        .dim-row:last-child { border-bottom: none; }
-        .dim-row .name { flex: 1; font-size: .95em; }
-        .dim-row input {
-          width: 74px; box-sizing: border-box;
-          border: 1px solid var(--divider-color);
-          border-radius: 10px; padding: 7px 10px;
-          font: inherit; font-size: .95em;
-          background: var(--secondary-background-color);
-          color: var(--primary-text-color);
-        }
-        .dim-row .pct { font-size: .85em; color: var(--secondary-text-color); }
-        .dim-actions { margin-top: 14px; text-align: center; }
-        .dim-actions button {
-          border: none; border-radius: 14px; padding: 12px 28px;
-          background: var(--primary-color);
-          color: var(--text-primary-color, #fff);
-          font: inherit; font-weight: 700; cursor: pointer;
-        }
-        .dim-saved {
-          display: block; text-align: center; margin-top: 8px;
-          font-size: .85em; color: var(--primary-color); font-weight: 600;
-        }
-        .dim-saved:empty { display: none; }
         .timings-overlay {
           position: fixed; inset: 0; z-index: 1000;
           background: rgba(0,0,0,.5);
@@ -343,20 +226,12 @@ class RensonGatewayConfigCard extends HTMLElement {
             return `
               <div class="cover-row" data-entity="${eid}">
                 <div>
-                  <div class="name">${esc(shortTitle(this._hass, eid))}</div>
+                  <div class="name">${esc(shortName(this._hass, eid))}</div>
                   <div class="timers">${esc(timers.join(" · ") || this._t("no_timers"))}</div>
                 </div>
                 <button data-entity="${eid}">${esc(this._t("screen_timings_short"))}</button>
               </div>`;
           }).join("") : `<div class="hint">${esc(this._t("no_screens"))}</div>`}
-        </div>
-        <div class="tabbody ${this._tab === "dimming" ? "active" : ""}" data-tab="dimming">
-          <div class="hint">${esc(this._t("dim_hint"))}</div>
-          <div class="dim-rows"></div>
-          <div class="dim-actions">
-            <button class="dim-save">${esc(this._t("save"))}</button>
-            <span class="dim-saved"></span>
-          </div>
         </div>
         <div class="timings-overlay">
           <div class="timings-dialog">
@@ -394,35 +269,22 @@ class RensonGatewayConfigCard extends HTMLElement {
     });
     overlay.querySelector(".save").addEventListener("click", () => this._saveTimings());
 
-    // Dimming tab.
-    this._renderDimRows();
-    this.renderRoot.querySelector(".dim-save").addEventListener(
-      "click", () => this._saveDimLevels()
-    );
+    // Embedded cards: configure and pass hass through. This needs hass
+    // (entity discovery), so it only happens once hass is available.
+    this._embedded = [];
+    if (this._hass) {
+      const inputsCard = this.renderRoot.querySelector("#inputs-card");
+      inputsCard.setConfig({
+        entities: this._config.entities || this._omEntities("event"),
+      });
+      inputsCard.hass = this._hass;
+      const automationsCard = this.renderRoot.querySelector("#automations-card");
+      automationsCard.setConfig({});
+      automationsCard.hass = this._hass;
+      this._embedded = [inputsCard, automationsCard];
+    }
 
-    // Embedded cards: configure and pass hass through.
-    const inputsCard = this.renderRoot.querySelector("#inputs-card");
-    inputsCard.setConfig({
-      entities: this._config.entities || this._omEntities("event"),
-    });
-    if (this._hass) inputsCard.hass = this._hass;
-    const automationsCard = this.renderRoot.querySelector("#automations-card");
-    automationsCard.setConfig({});
-    if (this._hass) automationsCard.hass = this._hass;
-    this._embedded = [inputsCard, automationsCard];
-
-    if (this._tab === "dimming") this._fetchOptions();
   }
-}
-
-function shortTitle(hass, eid) {
-  const st = hass && hass.states[eid];
-  const name = (st && st.attributes && st.attributes.friendly_name) || eid;
-  // Strip the device prefix ("CV Living" -> "Living" style duplicates are
-  // kept as-is; only exact "Room Room" duplicates collapse).
-  const parts = name.split(" ");
-  if (parts.length > 1 && parts[0] === parts[1]) return parts.slice(1).join(" ");
-  return name;
 }
 
 customElements.define("renson-smartliving-gateway-config", RensonGatewayConfigCard);
@@ -431,5 +293,5 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "renson-smartliving-gateway-config",
   name: "Renson Gateway Configuration",
-  description: "Configure the gateway: input links, automations, screen timers and dim levels",
+  description: "Configure the gateway: input links, automations and screen timers",
 });

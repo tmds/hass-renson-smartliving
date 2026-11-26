@@ -214,17 +214,3 @@ run_group_action:
           min: 0
           max: 255
           step: 1
-
-set_min_dim_levels:
-  name: Set minimum dim levels
-  description: >-
-    Set the minimum dim level (percent) for one or more OpenMotics lights.
-    Percent 0 clears the minimum. Lights below their driver floor come on
-    dark, so a floor keeps them visible.
-  fields:
-    levels:
-      name: Levels
-      description: List of {entity_id, percent} entries.
-      required: true
-      selector:
-        object:

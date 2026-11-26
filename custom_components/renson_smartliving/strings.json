@@ -24,15 +24,11 @@
     "step": {
       "init": {
         "title": "Integration options",
-        "description": "Fine-tune dimming and thermostat override behavior.",
+        "description": "Thermostat override behavior.",
         "data": {
-          "min_dim_levels": "Minimum dim levels",
           "preset_expiration_hours": "Manual temperature override duration (hours, 0 = permanent)"
         }
       }
-    },
-    "error": {
-      "invalid_min_dim": "Invalid format. Use output_id:percent pairs separated by commas, e.g. 27:12,21:30."
     }
   }
 }

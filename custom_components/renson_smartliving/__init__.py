@@ -16,14 +16,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 
 from .api import OpenMoticsClient
-from .const import (
-    CONF_HOST,
-    CONF_MIN_DIM_LEVELS,
-    DAY_KEYS,
-    DOMAIN,
-    PLATFORMS,
-    parse_min_dim_levels,
-)
+from .const import CONF_HOST, DAY_KEYS, DOMAIN, PLATFORMS
 from .coordinator import GatewayInfo, OpenMoticsCoordinator
 from .event import _has_extended_actions
 from .group_actions import parse_actions, validate_actions
@@ -105,25 +98,6 @@ SERVICE_RUN_GROUP_ACTION_SCHEMA = vol.Schema(
         vol.Required("id"): vol.Coerce(int),
     }
 )
-
-SERVICE_SET_MIN_DIM_SCHEMA = vol.Schema(
-    {
-        vol.Required("levels"): vol.All(
-            cv.ensure_list,
-            [
-                vol.Schema(
-                    {
-                        vol.Required("entity_id"): cv.entity_id,
-                        vol.Required("percent"): vol.All(
-                            vol.Coerce(int), vol.Range(min=0, max=100)
-                        ),
-                    }
-                )
-            ],
-        ),
-    }
-)
-
 
 def _resolve_om_entity(
     hass: HomeAssistant, entity_id: str
@@ -459,51 +433,6 @@ async def _async_run_group_action(call: ServiceCall) -> None:
     _LOGGER.info("Group action %d triggered", call.data["id"])
 
 
-async def _async_set_min_dim_levels(call: ServiceCall) -> None:
-    """Set per-output minimum dim levels, keyed by light entity id.
-
-    Percent 0 clears the minimum for that light. Levels are stored in the
-    config entry options (same format as the options flow); updating the
-    options reloads the entry so the lights pick the new floor up.
-    """
-    resolved: list[tuple[OpenMoticsCoordinator, int, int]] = []
-    coordinator: OpenMoticsCoordinator | None = None
-    for item in call.data["levels"]:
-        entry_coordinator, entity = _resolve_om_entity(
-            call.hass, item["entity_id"]
-        )
-        if entity.entity_id.split(".")[0] != "light":
-            raise ValueError(f"{item['entity_id']} is not an OpenMotics light")
-        output = cast("int | None", entity._om_id)  # noqa: SLF001
-        if output is None:
-            raise ValueError(f"{item['entity_id']} has no OpenMotics output id")
-        resolved.append((entry_coordinator, output, item["percent"]))
-        coordinator = entry_coordinator
-    if coordinator is None:
-        return
-    entry = next(
-        (
-            e
-            for e in call.hass.config_entries.async_entries(DOMAIN)
-            if getattr(e.runtime_data, "coordinator", None) is coordinator
-        ),
-        None,
-    )
-    if entry is None:
-        raise ValueError("No OpenMotics config entry found for this gateway")
-    parsed = parse_min_dim_levels(entry.options.get(CONF_MIN_DIM_LEVELS, ""))
-    for _coord, output, percent in resolved:
-        if percent <= 0:
-            parsed.pop(output, None)
-        else:
-            parsed[output] = percent
-    raw = ",".join(f"{output_id}:{pct}" for output_id, pct in sorted(parsed.items()))
-    options = dict(entry.options)
-    options[CONF_MIN_DIM_LEVELS] = raw
-    call.hass.config_entries.async_update_entry(entry, options=options)
-    _LOGGER.info("Minimum dim levels set: %s", raw or "(none)")
-
-
 FRONTEND_URL_BASE = "/renson_smartliving"
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 _MANIFEST_VERSION = json.loads(
@@ -568,12 +497,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         "run_group_action",
         _async_run_group_action,
         schema=SERVICE_RUN_GROUP_ACTION_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "set_min_dim_levels",
-        _async_set_min_dim_levels,
-        schema=SERVICE_SET_MIN_DIM_SCHEMA,
     )
     return True
 
