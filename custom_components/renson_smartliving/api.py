@@ -281,9 +281,34 @@ class OpenMoticsClient:
     async def get_shutter_status(self) -> dict[str, Any]:
         return await self.get("/get_shutter_status")
 
+    async def set_shutter_configuration(self, config: dict[str, Any]) -> None:
+        """Write a single shutter configuration (legacy endpoint, form params).
+
+        The gateway serializer resets missing fields to their defaults, so
+        callers MUST pass the complete current configuration merged with
+        the fields they want to change (see the input link pitfall).
+        """
+        await self.post(
+            "/set_shutter_configuration",
+            {"config": json.dumps(config)},
+            idempotent=False,
+        )
+
     async def get_input_configurations(self) -> list[dict[str, Any]]:
         data = await self.get("/get_input_configurations")
         return cast(list[dict[str, Any]], data.get("config", []))
+
+    async def set_input_configuration(self, config: dict[str, Any]) -> None:
+        """Write a single input configuration (legacy endpoint, form params).
+
+        Only the fields present in ``config`` are written; the gateway
+        merges them into the stored input configuration.
+        """
+        await self.post(
+            "/set_input_configuration",
+            {"config": json.dumps(config)},
+            idempotent=False,
+        )
 
     async def get_output_configurations(self) -> list[dict[str, Any]]:
         data = await self.get("/get_output_configurations")
@@ -305,6 +330,17 @@ class OpenMoticsClient:
         data = await self.get("/get_group_action_configurations")
         return cast(list[dict[str, Any]], data.get("config", []))
 
+    async def set_group_action_configuration(self, config: dict[str, Any]) -> None:
+        """Write a single group action (gateway automation) configuration.
+
+        Legacy endpoint with form params. The serializer only writes the
+        fields present in ``config`` (id, name, actions, show_in_app).
+        """
+        await self.post(
+            "/set_group_action_configuration",
+            {"config": json.dumps(config)},
+            idempotent=False,
+        )
     # -- Commands --
 
     async def set_output(
