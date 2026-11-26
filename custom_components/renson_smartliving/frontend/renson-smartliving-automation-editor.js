@@ -354,7 +354,7 @@ class RensonAutomationEditor extends HTMLElement {
       : "";
     const empty = data
       ? `<button class="btn new">${this._t("new_automation")}</button>`
-      : "";
+      : `<div class="loading">${esc(this._t("loading"))}</div>`;
 
     this.renderRoot.innerHTML = `
       <style>
@@ -370,6 +370,7 @@ class RensonAutomationEditor extends HTMLElement {
                   white-space: nowrap; }
         .tag { font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 6px;
                background: rgba(255,171,64,.25); }
+        .loading { padding: 8px 2px; font-size: .85em; color: var(--secondary-text-color); }
         .btn { border: none; border-radius: 8px; padding: 7px 12px; cursor: pointer;
                font-size: 13px; background: var(--secondary-background-color, #eee);
                color: var(--primary-text-color, #111); }
