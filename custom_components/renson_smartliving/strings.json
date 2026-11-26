@@ -23,10 +23,11 @@
   "options": {
     "step": {
       "init": {
-        "title": "Minimum dim levels",
-        "description": "Per-output minimum dim level in percent, so LED drivers never go below their visible floor. Format: output_id:percent, comma separated (e.g. 27:12,21:30). Leave empty to disable.",
+        "title": "Integration options",
+        "description": "Fine-tune dimming and thermostat override behavior.",
         "data": {
-          "min_dim_levels": "Minimum dim levels"
+          "min_dim_levels": "Minimum dim levels",
+          "preset_expiration_hours": "Manual temperature override duration (hours, 0 = permanent)"
         }
       }
     },

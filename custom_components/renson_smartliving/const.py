@@ -21,6 +21,9 @@ CONF_HOST = "host"
 # Per-output minimum dim level (LED drivers that go dark below their floor).
 # Stored as a comma separated "output_id:percent" list, e.g. "27:12,21:30".
 CONF_MIN_DIM_LEVELS = "min_dim_levels"
+# Hours a manual setpoint override stays active before the schedule resumes.
+# 0 means the override never expires (permanent until AUTO is selected).
+CONF_PRESET_EXPIRATION_HOURS = "preset_expiration_hours"
 
 
 def parse_min_dim_levels(raw: Any) -> dict[int, int]:

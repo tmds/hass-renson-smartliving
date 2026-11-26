@@ -17,6 +17,8 @@ from .api import AuthenticationError, OpenMoticsClient
 from .const import (
     CONF_HOST,
     CONF_MIN_DIM_LEVELS,
+    CONF_PRESET_EXPIRATION_HOURS,
+    DEFAULT_PRESET_EXPIRATION_HOURS,
     DOMAIN,
     parse_min_dim_levels,
 )
@@ -49,7 +51,7 @@ async def _connect_and_get_details(
 
 
 class OpenMoticsOptionsFlowHandler(OptionsFlow):
-    """Options flow: per-output minimum dim levels."""
+    """Options flow: per-output minimum dim levels and preset expiration."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -58,14 +60,22 @@ class OpenMoticsOptionsFlowHandler(OptionsFlow):
         if user_input is not None:
             raw = user_input.get(CONF_MIN_DIM_LEVELS, "")
             parsed = parse_min_dim_levels(raw)
+            hours = user_input.get(
+                CONF_PRESET_EXPIRATION_HOURS, DEFAULT_PRESET_EXPIRATION_HOURS
+            )
             if raw and not parsed:
                 errors["base"] = "invalid_min_dim"
             else:
-                return self.async_create_entry(
-                    title="",
-                    data={CONF_MIN_DIM_LEVELS: raw.strip()},
-                )
+                # Options are replaced wholesale on save: carry over anything
+                # already set so the dim-level save cannot drop other keys.
+                data = dict(self.config_entry.options)
+                data[CONF_MIN_DIM_LEVELS] = raw.strip()
+                data[CONF_PRESET_EXPIRATION_HOURS] = int(hours)
+                return self.async_create_entry(title="", data=data)
         current = self.config_entry.options.get(CONF_MIN_DIM_LEVELS, "")
+        current_hours = self.config_entry.options.get(
+            CONF_PRESET_EXPIRATION_HOURS, DEFAULT_PRESET_EXPIRATION_HOURS
+        )
         schema = vol.Schema(
             {
                 vol.Optional(
@@ -73,6 +83,11 @@ class OpenMoticsOptionsFlowHandler(OptionsFlow):
                     default=current,
                     description={"suggested_value": current},
                 ): str,
+                vol.Optional(
+                    CONF_PRESET_EXPIRATION_HOURS,
+                    default=current_hours,
+                    description={"suggested_value": current_hours},
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=48)),
             }
         )
         return self.async_show_form(

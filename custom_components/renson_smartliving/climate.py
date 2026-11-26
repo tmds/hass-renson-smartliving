@@ -20,6 +20,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 if TYPE_CHECKING:
     from . import OpenMoticsConfigEntry
 from .const import (
+    CONF_PRESET_EXPIRATION_HOURS,
     DEFAULT_PRESET_EXPIRATION_HOURS,
     DOMAIN,
     PRESET_AUTO,
@@ -251,7 +252,7 @@ class OpenMoticsClimate(OpenMoticsEntity, ClimateEntity):
         if target is None:
             return
         expiration_hours = self.coordinator.entry.options.get(
-            "preset_expiration_hours", DEFAULT_PRESET_EXPIRATION_HOURS
+            CONF_PRESET_EXPIRATION_HOURS, DEFAULT_PRESET_EXPIRATION_HOURS
         )
         payload: dict[str, Any] = {"setpoint": float(target)}
         if expiration_hours:
