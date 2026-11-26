@@ -1,11 +1,13 @@
 /**
  * Renson schedule button: opens the thermostat schedule editor popup.
  *
+ * Uses the shared dialog (same look as the gateway configuration card).
+ *
  * Config:
  *   type: custom:renson-smartliving-schedule-button
  *   entity: climate.praktijk
  */
-import { t } from "./renson-smartliving-common.js";
+import { t, openDialog } from "./renson-smartliving-common.js";
 
 class RensonScheduleButton extends HTMLElement {
   static getStubConfig() {
@@ -17,9 +19,11 @@ class RensonScheduleButton extends HTMLElement {
     const lang = (hass.locale && hass.locale.language) || "en";
     if (lang !== this._lang) {
       this._lang = lang;
-      if (!this._open) this._renderShell();
+      this._renderShell();
     }
-    if (this._open && this._editor) this._editor.hass = hass;
+    if (this._overlay && this._overlay.isConnected && this._editor) {
+      this._editor.hass = hass;
+    }
   }
 
   setConfig(config) {
@@ -27,7 +31,9 @@ class RensonScheduleButton extends HTMLElement {
       throw new Error("Please define an entity");
     }
     this._config = config;
-    this.renderRoot = this.attachShadow({ mode: "open" });
+    if (!this.renderRoot) {
+      this.renderRoot = this.attachShadow({ mode: "open" });
+    }
     this._renderShell();
   }
 
@@ -49,60 +55,27 @@ class RensonScheduleButton extends HTMLElement {
           font-family: inherit; transition: filter .15s ease, border-color .15s ease;
         }
         button:hover { filter: brightness(1.05); border-color: var(--primary-color); }
-        .overlay {
-          position: fixed; inset: 0; z-index: 1000;
-          background: rgba(0,0,0,.5);
-          display: flex; align-items: center; justify-content: center;
-          padding: 16px;
-        }
-        .dialog {
-          position: relative; width: 440px; max-width: 94vw;
-          max-height: 92vh; overflow-y: auto;
-          background: var(--card-background-color, #fff);
-          border-radius: 18px; padding: 8px;
-          box-shadow: 0 12px 40px rgba(0,0,0,.35);
-        }
-        .close {
-          position: absolute; top: 6px; right: 8px; z-index: 2;
-          border: none; background: var(--secondary-background-color);
-          color: var(--primary-text-color);
-          width: 30px; height: 30px; border-radius: 50%;
-          cursor: pointer; font-size: 1.05em;
-          display: flex; align-items: center; justify-content: center;
-          padding: 0; line-height: 1;
-        }
-        .editor-host { padding-top: 40px; }
       </style>
       <button>${t(this._lang, "configure_schedule")}</button>
-      <div class="overlay" style="display:none">
-        <div class="dialog">
-          <button class="close">&times;</button>
-          <div class="editor-host"></div>
-        </div>
-      </div>
     `;
     this.renderRoot.querySelector("button").addEventListener("click", () => {
-      this._open = true;
-      const overlay = this.renderRoot.querySelector(".overlay");
-      const host = this.renderRoot.querySelector(".editor-host");
-      if (!this._editor) {
-        this._editor = document.createElement("renson-smartliving-thermostat-config-card");
-        this._editor.setConfig({ entity: this._config.entity });
-        host.appendChild(this._editor);
-      }
+      const overlay = openDialog(this, { title: t(this._lang, "configure_schedule"), bodyHTML: "" });
+      const body = overlay.querySelector(".dlg-body");
+      body.style.padding = "0 0 8px";
+      this._editor = document.createElement("renson-smartliving-thermostat-config-card");
+      this._editor.setConfig({ entity: this._config.entity, embedded: true });
       if (this._hass) this._editor.hass = this._hass;
-      overlay.style.display = "flex";
-    });
-    const overlay = this.renderRoot.querySelector(".overlay");
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) {
-        overlay.style.display = "none";
-        this._open = false;
-      }
-    });
-    this.renderRoot.querySelector(".close").addEventListener("click", () => {
-      overlay.style.display = "none";
-      this._open = false;
+      body.appendChild(this._editor);
+      this._overlay = overlay;
+      // Keep the editor's hass fresh while the dialog is open.
+      this._refreshTimer = setInterval(() => {
+        if (!overlay.isConnected) {
+          clearInterval(this._refreshTimer);
+          this._overlay = null;
+          return;
+        }
+        if (this._hass) this._editor.hass = this._hass;
+      }, 1000);
     });
   }
 }
