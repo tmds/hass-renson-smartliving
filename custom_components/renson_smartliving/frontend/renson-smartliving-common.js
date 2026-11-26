@@ -518,20 +518,46 @@ function _scheduleColor(temp) {
 
 export function scheduleStripCSS() {
   return `
+    .schedwrap { container-type: inline-size; }
+    .schedbar { position: relative; }
     .sched { position: relative; height: 10px; border-radius: 5px;
              overflow: hidden; background: var(--secondary-background-color); }
     .sched div { position: absolute; top: 0; bottom: 0; }
     .sched .nowmark { top: -2px; bottom: -2px; width: 2px;
                       background: var(--primary-text-color); opacity: .8; }
-    .schedlabels { position: relative; height: 12px;
-                   font-size: .65em; color: var(--secondary-text-color);
-                   margin-top: 3px; }
-    .schedlabels span { position: absolute; top: 0; left: 0; }
-    .schedlabels span:nth-child(2) { left: 25%; transform: translateX(-50%); }
-    .schedlabels span:nth-child(3) { left: 50%; transform: translateX(-50%); }
-    .schedlabels span:nth-child(4) { left: 75%; transform: translateX(-50%); }
-    .schedlabels span:nth-child(5) { left: auto; right: 0; }
+    /* Hover layer on top of the bar. It sits outside the bar's
+       overflow:hidden so the popup is not clipped; one block per segment. */
+    .schedhover { position: absolute; inset: -3px 0; }
+    .schedhover div { position: absolute; top: 0; bottom: 0; border-radius: 6px; }
+    .schedhover div:hover { box-shadow: inset 0 0 0 2px var(--primary-text-color); }
+    .schedhover div:hover::after {
+      content: attr(data-tip);
+      position: absolute; bottom: calc(100% + 6px); left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap; pointer-events: none; z-index: 5;
+      font-size: .74rem; font-weight: 600; line-height: 1.2;
+      padding: 5px 9px; border-radius: 8px;
+      background: var(--primary-text-color);
+      color: var(--card-background-color);
+      box-shadow: 0 4px 14px rgba(0,0,0,.25);
+    }
+    .schedhover div.edge-l:hover::after { left: 0; transform: none; }
+    .schedhover div.edge-r:hover::after { left: auto; right: 0; transform: none; }
+    .schedlabels { position: relative; height: 12px; margin-top: 4px;
+                   font-size: .6em; color: var(--secondary-text-color);
+                   font-variant-numeric: tabular-nums; }
+    .schedlabels span { position: absolute; top: 0; transform: translateX(-50%); }
+    .schedlabels span:last-child { transform: translateX(-100%); }
+    /* Narrow bars: every other hour, then every six hours. */
+    @container (max-width: 560px) { .schedlabels span.odd { display: none; } }
+    @container (max-width: 260px) { .schedlabels span:not(.q) { display: none; } }
   `;
+}
+
+function _hhmm(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
 
 export function scheduleStripHTML(entity) {
@@ -542,9 +568,16 @@ export function scheduleStripHTML(entity) {
   const setpoints = Object.entries(src[today] || {})
     .map(([time, temp]) => ({ time, temp: Number(temp) }))
     .sort((a, b) => _sec(a.time) - _sec(b.time));
-  const labels = `<div class="schedlabels"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>`;
-  if (!setpoints.length) return `<div class="sched"></div>${labels}`;
-  const parts = [];
+  // Hour labels 01..24 on their exact position under the bar.
+  const hours = [];
+  for (let h = 1; h <= 24; h++) {
+    const cls = [h % 2 ? "odd" : "", h % 6 === 0 ? "q" : ""].filter(Boolean).join(" ");
+    hours.push(`<span class="${cls}" style="left:${((h / 24) * 100).toFixed(3)}%">${String(h).padStart(2, "0")}</span>`);
+  }
+  const labels = `<div class="schedlabels">${hours.join("")}</div>`;
+  if (!setpoints.length) {
+    return `<div class="schedwrap"><div class="schedbar"><div class="sched"></div></div>${labels}</div>`;
+  }
   // The setpoint that is active at 00:00 is the last one of the previous
   // day (fall back to today's last one). Without this the bar starts at
   // the first setpoint and the left part of the day stays empty.
@@ -554,22 +587,26 @@ export function scheduleStripHTML(entity) {
     .sort((a, b) => _sec(a.time) - _sec(b.time));
   const carrySrc = prevSetpoints.length ? prevSetpoints : setpoints;
   const carry = carrySrc[carrySrc.length - 1];
+  const segs = [];
   const firstFrom = _sec(setpoints[0].time);
-  if (firstFrom > 0) {
-    parts.push(
-      `<div style="left:0;width:${(firstFrom / 864).toFixed(3)}%;background:${_scheduleColor(carry.temp)}"></div>`
-    );
-  }
+  if (firstFrom > 0) segs.push({ from: 0, to: firstFrom, temp: carry.temp });
   for (let i = 0; i < setpoints.length; i++) {
     const from = _sec(setpoints[i].time);
     const to = i + 1 < setpoints.length ? _sec(setpoints[i + 1].time) : 86400;
-    parts.push(
-      `<div style="left:${(from / 864).toFixed(3)}%;width:${((to - from) / 864).toFixed(3)}%;background:${_scheduleColor(setpoints[i].temp)}"></div>`
-    );
+    if (to > from) segs.push({ from, to, temp: setpoints[i].temp });
   }
+  const pos = (sg) => `left:${(sg.from / 864).toFixed(3)}%;width:${((sg.to - sg.from) / 864).toFixed(3)}%`;
+  const bar = segs.map((sg) => `<div style="${pos(sg)};background:${_scheduleColor(sg.temp)}"></div>`);
   const nowPct = ((new Date().getHours() * 60 + new Date().getMinutes()) / 1440) * 100;
-  parts.push(`<div class="nowmark" style="left:${nowPct.toFixed(3)}%"></div>`);
-  return `<div class="sched">${parts.join("")}</div>${labels}`;
+  bar.push(`<div class="nowmark" style="left:${nowPct.toFixed(3)}%"></div>`);
+  const hover = segs.map((sg) => {
+    // Popup centred on the block, except near the card edges.
+    const mid = (sg.from + sg.to) / 2;
+    const edge = mid < 8640 ? "edge-l" : mid > 77760 ? "edge-r" : "";
+    const tip = `${_hhmm(sg.from)}-${_hhmm(sg.to)} · ${fmtTemp(sg.temp)}°`;
+    return `<div class="${edge}" style="${pos(sg)}" data-tip="${esc(tip)}"></div>`;
+  });
+  return `<div class="schedwrap"><div class="schedbar"><div class="sched">${bar.join("")}</div><div class="schedhover">${hover.join("")}</div></div>${labels}</div>`;
 }
 
 export function fmtTemp(t) {
