@@ -43,17 +43,6 @@ When the names/rooms change in the smart living system, the entities provided by
 
 Setting a temperature on the climate entity writes the setpoint with a preset expiration (default 2 hours, configurable per config entry); returning the preset to `auto` resumes the schedule.
 
-### Room dashboards
-
-The `renson-smartliving-rooms-grid` card renders every room as a tile in a
-full-width overview panel; `renson-smartliving-room-card` is the per-room
-variant. Room views show the thermostat with a schedule button that opens the
-schedule editor, plus the lights, screens and sensors of that room.
-
-![Rooms overview](docs/screenshots/overview.png)
-
-![Room view](docs/screenshots/room-view.png)
-
 ## Installation
 
 ### HACS
