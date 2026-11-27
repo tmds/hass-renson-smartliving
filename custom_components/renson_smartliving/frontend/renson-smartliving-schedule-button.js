@@ -26,6 +26,17 @@ class RensonScheduleButton extends HTMLElement {
     }
   }
 
+  disconnectedCallback() {
+    if (this._refreshTimer) {
+      clearInterval(this._refreshTimer);
+      this._refreshTimer = null;
+    }
+    if (this._overlay && this._overlay.isConnected) {
+      this._overlay.close();
+    }
+    this._overlay = null;
+  }
+
   setConfig(config) {
     if (!config.entity) {
       throw new Error("Please define an entity");
