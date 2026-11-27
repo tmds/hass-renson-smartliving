@@ -4,6 +4,7 @@ from datetime import UTC, datetime, time, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from homeassistant.core import HomeAssistant
 from homeassistant.components.climate import (
     PRESET_AWAY,
     PRESET_NONE,
@@ -14,9 +15,13 @@ from homeassistant.components.climate import (
 from custom_components.renson_smartliving.climate import (
     OpenMoticsClimate,
     create_entities,
+    seconds_to_time,
     time_to_seconds,
 )
-from custom_components.renson_smartliving.const import PRESET_AUTO
+from custom_components.renson_smartliving.const import (
+    CONF_PRESET_EXPIRATION_HOURS,
+    PRESET_AUTO,
+)
 from custom_components.renson_smartliving.coordinator import OpenMoticsCoordinator
 from tests.fixtures import (
     SAMPLE_THERMOSTAT_EVENT,
@@ -294,3 +299,88 @@ async def test_update_local_config_refreshes_attributes(
     attrs = climate.extra_state_attributes
     assert attrs["lead_time"] == 30
     assert attrs["away_temperature"] == 12.0
+
+
+async def test_set_temperature_zero_expiration_is_permanent(
+    hass: HomeAssistant,
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    """expiration_hours=0 sends no preset_expiration (permanent override)."""
+    _load_status(coordinator)
+    climate = _make_climate(coordinator)
+    hass.config_entries.async_update_entry(
+        coordinator.entry, options={CONF_PRESET_EXPIRATION_HOURS: 0}
+    )
+    coordinator.client = MagicMock()
+    coordinator.client.set_thermostat_control = AsyncMock()
+    coordinator.client.get_timezone = AsyncMock(return_value="Europe/Brussels")
+
+    await climate.async_set_temperature(temperature=22.0)
+
+    payload = coordinator.client.set_thermostat_control.call_args.args[1]
+    assert payload == {"setpoint": 22.0}
+    assert "preset_expiration" not in payload
+    coordinator.client.get_timezone.assert_not_called()
+
+
+async def test_set_temperature_timezone_fallback(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    """When get_timezone raises, set_temperature still succeeds."""
+    _load_status(coordinator)
+    climate = _make_climate(coordinator)
+    coordinator.client = MagicMock()
+    coordinator.client.set_thermostat_control = AsyncMock()
+    coordinator.client.get_timezone = AsyncMock(side_effect=RuntimeError("timeout"))
+
+    before = datetime.now()
+    await climate.async_set_temperature(temperature=19.0)
+
+    payload = coordinator.client.set_thermostat_control.call_args.args[1]
+    assert payload["setpoint"] == 19.0
+    expires = datetime.fromisoformat(payload["preset_expiration"])
+    assert before + timedelta(hours=1.9) < expires < before + timedelta(hours=2.1)
+
+
+async def test_set_schedule_requires_setpoints_or_week() -> None:
+    """Calling _async_set_schedule with neither setpoints nor week raises."""
+    from custom_components.renson_smartliving.__init__ import _async_set_schedule
+
+    call = MagicMock()
+    call.data = {"entity_id": ["climate.living"]}
+    call.hass = MagicMock()
+
+    with pytest.raises(ValueError, match="setpoints or week"):
+        await _async_set_schedule(call)
+
+
+async def test_set_config_requires_a_field() -> None:
+    """Calling _async_set_config with no config fields raises."""
+    from custom_components.renson_smartliving.__init__ import _async_set_config
+
+    call = MagicMock()
+    call.data = {"entity_id": ["climate.living"]}
+    call.hass = MagicMock()
+
+    with pytest.raises(ValueError, match="away_temperature and/or lead_time"):
+        await _async_set_config(call)
+
+
+async def test_resolve_thermostat_unknown_entity(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    """_resolve_thermostat raises for an unknown entity id."""
+    from custom_components.renson_smartliving.__init__ import _resolve_thermostat
+    from custom_components.renson_smartliving.const import DOMAIN
+
+    coordinator.hass.data.setdefault(DOMAIN, {})["climate_entities"] = {}
+
+    with pytest.raises(ValueError, match="Unknown OpenMotics climate entity"):
+        _resolve_thermostat(coordinator.hass, "climate.nonexistent")
+
+
+def test_seconds_to_time_edges() -> None:
+    """seconds_to_time handles midnight and end-of-day."""
+    assert seconds_to_time(0) == "00:00"
+    assert seconds_to_time(86340) == "23:59"
+    assert seconds_to_time(43200) == "12:00"

@@ -116,6 +116,7 @@ async def test_rest_config_fallback_on_missing_sync_api() -> None:
     assert config["OUTPUT_CONTROL"] == SAMPLE_CONFIG["OUTPUT_CONTROL"]
     assert config["ROOM_CONTROL"] == SAMPLE_CONFIG["ROOM_CONTROL"]
     assert config["VERSION"] == {"gateway": "3.11.1", "master": "3.143.131"}
+    client.get_thermostat_control.assert_called_once()
     on_full_update.assert_called_once()
 
 
