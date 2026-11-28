@@ -171,8 +171,15 @@ class RensonClimateCard extends HTMLElement {
     // alle uren van de komende 24h als labels (geen klikken)
     const ticks = [];
     for (let h = 2; h <= 48; h += 2) {
-      const left = ((h * 30 - 15) / (1440 - 15)) * 100;
+      const left = ((h * 30 - 30) / (1440 - 30)) * 100;
       ticks.push(`<span class="tick" style="left:${left}%">${h / 2}${t(lang, "hour_unit")}</span>`);
+    }
+    // werkelijke klok-tijd per uur, boven de lijn
+    const timeticks = [];
+    for (let h = 1; h <= 24; h++) {
+      const left = ((h * 60 - 30) / (1440 - 30)) * 100;
+      const t2 = new Date(Date.now() + h * 3600000);
+      timeticks.push(`<span class="timetick" style="left:${left}%">${this._fmtClock(t2)}</span>`);
     }
     const host = document.createElement("div");
     host.innerHTML = `
@@ -186,6 +193,7 @@ class RensonClimateCard extends HTMLElement {
           })}</div>
           <div class="durlabel"></div>
           <div class="sliderwrap">
+            <div class="timeticks">${timeticks.join("")}</div>
             <input type="range" class="dur" min="30" max="1440" step="30" value="${d.minutes}">
             <div class="ticks">${ticks.join("")}</div>
           </div>
@@ -331,6 +339,14 @@ class RensonClimateCard extends HTMLElement {
           font-size: .58em; color: var(--secondary-text-color);
         }
         .dialog .tick {
+          position: absolute; transform: translateX(-50%);
+        }
+        .dialog .timeticks {
+          position: relative; height: 14px; margin-bottom: 2px;
+          font-size: .58em; color: var(--primary-text-color);
+          font-weight: 600;
+        }
+        .dialog .timetick {
           position: absolute; transform: translateX(-50%);
         }
         .dialog .row {
