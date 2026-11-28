@@ -57,21 +57,30 @@ class RensonScheduleButton extends HTMLElement {
         ${scheduleStripCSS()}
         button {
           width: 100%;
-          border: 1px solid var(--divider-color);
+          border: none;
           background: var(--secondary-background-color);
           color: var(--primary-text-color);
-          border-radius: 12px; padding: 10px 14px;
-          cursor: pointer; font-size: .9em; font-weight: 600;
-          font-family: inherit; transition: filter .15s ease, border-color .15s ease;
-          display: flex; flex-direction: column; gap: 7px; align-items: stretch;
+          border-radius: 16px; padding: 12px 14px;
+          cursor: pointer;
+          font-family: inherit;
+          display: flex; flex-direction: column; gap: 8px; align-items: stretch;
+          transition: background .2s ease;
         }
-        button:hover { filter: brightness(1.05); border-color: var(--primary-color); }
+        button:hover { background: rgba(var(--rgb-primary-text-color, 255, 255, 255), .08); }
+        .lblrow {
+          display: flex; align-items: center; gap: 8px;
+          font-size: .9em; font-weight: 600; text-align: left;
+        }
+        .lblrow ha-icon { --mdc-icon-size: 18px; color: var(--primary-color); }
         .mini .schedbar { height: 8px; border-radius: 4px; }
         .mini .schedhover { display: none; }
         .mini .nowmark { width: 2px; }
       </style>
       <button>
-        <span>${t(this._lang, "configure_schedule")}</span>
+        <span class="lblrow">
+          <ha-icon icon="mdi:calendar-edit"></ha-icon>
+          <span>${t(this._lang, "configure_schedule")}</span>
+        </span>
         <span class="mini"></span>
       </button>
     `;

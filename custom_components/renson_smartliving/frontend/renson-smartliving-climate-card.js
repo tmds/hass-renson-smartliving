@@ -301,30 +301,36 @@ class RensonClimateCard extends HTMLElement {
         :host { display: block; }
         .tilehost { display: block; }
         .presets {
-          margin-top: 8px; display: flex; gap: 4px;
+          margin-top: 8px; display: flex; gap: 6px;
           background: var(--secondary-background-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 12px; padding: 3px;
+          border: none;
+          border-radius: 24px; padding: 5px;
         }
         .presets button {
           flex: 1; border: none; background: transparent;
-          color: var(--primary-text-color);
-          border-radius: 9px; padding: 7px 0;
-          cursor: pointer; font-size: .82em; font-weight: 600;
-          font-family: inherit; transition: background .15s ease, color .15s ease;
+          color: var(--secondary-text-color);
+          border-radius: 20px; padding: 9px 0;
+          cursor: pointer; font-size: .85em; font-weight: 600;
+          font-family: inherit; transition: background .2s ease, color .2s ease;
         }
         .presets button.active {
           background: var(--primary-color); color: var(--text-on-primary, #fff);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
         }
-        .presets button:not(.active):hover { filter: brightness(1.05); }
+        .presets button:not(.active):hover {
+          color: var(--primary-text-color);
+          background: rgba(var(--rgb-primary-text-color, 255, 255, 255), .06);
+        }
         .until-pill {
-          margin-top: 6px; padding: 6px 12px;
-          border-radius: 10px;
-          background: var(--primary-color);
-          color: var(--text-on-primary, #fff);
-          font-size: .8em; font-weight: 600;
-          text-align: center;
+          margin-top: 8px; padding: 10px 14px;
+          border-radius: 24px;
+          background: rgba(var(--rgb-primary-color, 0, 0, 0), .12);
+          color: var(--primary-color);
+          font-size: .85em; font-weight: 600;
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+          cursor: pointer;
         }
+        .until-pill ha-icon { --mdc-icon-size: 16px; }
         .overlay {
           position: fixed; inset: 0; z-index: 1000;
           background: rgba(0,0,0,.5);
@@ -445,7 +451,7 @@ class RensonClimateCard extends HTMLElement {
       const when = isNaN(d.getTime())
         ? String(exp)
         : this._fmtClock(d);
-      pill.textContent = t(this._lang, "gw_manual_until", { time: when });
+      pill.innerHTML = `<ha-icon icon="mdi:clock-outline"></ha-icon><span>${t(this._lang, "gw_manual_until", { time: when })}</span>`;
       pill.style.display = "";
       if (!pill._wired) {
         pill._wired = true;
