@@ -162,13 +162,17 @@ class RensonClimateCard extends HTMLElement {
     const d = this._dialog;
     if (!d) return;
     const lang = this._lang;
-    const quick = QUICK_HOURS.map((h) => {
-      const end = this._fmtClock(new Date(Date.now() + h * 3600000));
-      const active = d.mode === "hours" && d.hours === h;
-      return `<button type="button" class="chip ${active ? "active" : ""}" data-hours="${h}">
-        ${h}${t(lang, "hour_unit")} (${end})</button>`;
-    }).join("");
     const defEnd = this._fmtClock(new Date(Date.now() + d.hours * 3600000));
+    // slider-positie: bij een actieve override de resterende uren tonen
+    let sliderVal = d.mode === "until"
+      ? Math.round((this._todayAt(d.until) - Date.now()) / 3600000)
+      : d.hours;
+    sliderVal = Math.max(1, Math.min(24, sliderVal || d.hours || 2));
+    const tickVals = [1, 2, 4, 8, 12, 14, 24];
+    const ticks = tickVals.map((h) => {
+      const left = ((h - 1) / 23) * 100;
+      return `<span class="tick" data-hours="${h}" style="left:${left}%">${h}${t(lang, "hour_unit")}</span>`;
+    }).join("");
     const host = document.createElement("div");
     host.innerHTML = `
       <div class="overlay">
@@ -179,7 +183,11 @@ class RensonClimateCard extends HTMLElement {
             temp: d.temperature.toFixed(1).replace(/\.0$/, ""),
             end: defEnd,
           })}</div>
-          <div class="chips">${quick}</div>
+          <div class="durlabel"></div>
+          <div class="sliderwrap">
+            <input type="range" class="dur" min="1" max="24" step="1" value="${sliderVal}">
+            <div class="ticks">${ticks}</div>
+          </div>
           <div class="row">
             <label>${t(lang, "override_until")}</label>
             <input type="time" class="until" value="${d.until}">
@@ -198,26 +206,54 @@ class RensonClimateCard extends HTMLElement {
       if (e.target === overlay) this._closeDialog(false);
     });
     overlay.querySelector(".close").addEventListener("click", () => this._closeDialog(false));
-    overlay.querySelectorAll(".chip").forEach((chip) => {
-      chip.addEventListener("click", () => {
+    const label = overlay.querySelector(".durlabel");
+    const untilInput = overlay.querySelector(".until");
+    const syncLabel = () => {
+      const end = d.mode === "until"
+        ? d.until
+        : this._fmtClock(new Date(Date.now() + d.hours * 3600000));
+      label.textContent = d.mode === "until"
+        ? `${t(lang, "override_until")}: ${end}`
+        : `${d.hours}${t(lang, "hour_unit")} (${end})`;
+      untilInput.value = end;
+    };
+    overlay.querySelector(".dur").addEventListener("input", (e) => {
+      d.mode = "hours";
+      d.hours = Number(e.target.value);
+      d.permanent = false;
+      overlay.querySelector(".perm").checked = false;
+      syncLabel();
+    });
+    // klikken op de tick-labels springt naar die duur
+    overlay.querySelectorAll(".tick").forEach((tick) => {
+      tick.addEventListener("click", () => {
         d.mode = "hours";
-        d.hours = Number(chip.dataset.hours);
+        d.hours = Number(tick.dataset.hours);
         d.permanent = false;
         overlay.querySelector(".perm").checked = false;
-        overlay.querySelectorAll(".chip").forEach((c) => c.classList.toggle("active", c === chip));
+        overlay.querySelector(".dur").value = d.hours;
+        syncLabel();
       });
     });
-    overlay.querySelector(".until").addEventListener("change", (e) => {
+    untilInput.addEventListener("change", (e) => {
       d.mode = "until";
       d.until = e.target.value || d.until;
       d.permanent = false;
       overlay.querySelector(".perm").checked = false;
-      overlay.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
+      syncLabel();
     });
     overlay.querySelector(".perm").addEventListener("change", (e) => {
       d.permanent = e.target.checked;
     });
+    syncLabel();
     overlay.querySelector(".apply").addEventListener("click", () => this._closeDialog(true));
+  }
+
+  _todayAt(hhmm) {
+    const [h, m] = String(hhmm).split(":").map(Number);
+    const now = new Date();
+    now.setHours(h || 0, m || 0, 0, 0);
+    return now;
   }
 
   async _ensureTile() {
@@ -279,18 +315,23 @@ class RensonClimateCard extends HTMLElement {
         }
         .dialog h3 { margin: 0 0 6px; font-size: 1.05em; }
         .dialog .hint { font-size: .8em; color: var(--secondary-text-color); margin-bottom: 12px; }
-        .dialog .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-        .dialog .chip {
-          border: 1px solid var(--divider-color);
-          background: var(--secondary-background-color);
-          color: var(--primary-text-color);
-          border-radius: 10px; padding: 7px 10px;
-          cursor: pointer; font-size: .82em; font-weight: 600; font-family: inherit;
+        .dialog .durlabel {
+          font-size: .95em; font-weight: 700; margin-bottom: 6px;
         }
-        .dialog .chip.active {
-          background: var(--primary-color); color: var(--text-on-primary, #fff);
-          border-color: var(--primary-color);
+        .dialog .sliderwrap { position: relative; margin: 4px 0 14px; }
+        .dialog input[type="range"] {
+          width: 100%; accent-color: var(--primary-color);
+          cursor: pointer;
         }
+        .dialog .ticks {
+          position: relative; height: 16px; margin-top: 2px;
+          font-size: .68em; color: var(--secondary-text-color);
+        }
+        .dialog .tick {
+          position: absolute; transform: translateX(-50%);
+          cursor: pointer; padding: 2px 3px;
+        }
+        .dialog .tick:hover { color: var(--primary-color); }
         .dialog .row {
           display: flex; justify-content: space-between; align-items: center;
           margin-bottom: 10px; font-size: .9em;
