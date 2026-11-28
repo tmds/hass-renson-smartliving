@@ -73,9 +73,25 @@ class RensonClimateCard extends HTMLElement {
       preset === "none" &&
       !this._dialog
     ) {
-      // alleen bij een echte override: preset-kliks (auto/away) wijzigen
-      // de temperatuur ook, maar mogen geen popup geven
-      this._askOverride(Number(temp));
+      // Mogelijke race: bij een preset-klik kan de temperatuur-update
+      // vóór de preset-update binnenkomen. Kort uitstellen en
+      // hervalideren: alleen popup als de override blijft staan.
+      clearTimeout(this._pendingTimer);
+      const expected = Number(temp);
+      this._pendingTimer = setTimeout(() => {
+        const e = this._hass && this._hass.states[this._config.entity];
+        const a = e ? e.attributes || {} : {};
+        if (
+          !this._dialog &&
+          a.preset_mode === "none" &&
+          a.temperature !== undefined &&
+          Number(a.temperature) === expected
+        ) {
+          this._askOverride(expected);
+        }
+      }, 1500);
+    } else if (preset && preset !== "none") {
+      clearTimeout(this._pendingTimer);
     }
     this._lastTemp = temp;
   }
