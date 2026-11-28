@@ -296,7 +296,6 @@ class RensonClimateCard extends HTMLElement {
 
   _render() {
     if (!this.renderRoot) return;
-    this.setAttribute("data-cardversion", "0.2.5-test");
     this.renderRoot.innerHTML = `
       <style>
         :host { display: block; }
