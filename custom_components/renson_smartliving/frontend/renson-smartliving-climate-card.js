@@ -155,7 +155,8 @@ class RensonClimateCard extends HTMLElement {
         ${h}${t(lang, "hour_unit")} (${end})</button>`;
     }).join("");
     const defEnd = this._fmtClock(new Date(Date.now() + d.hours * 3600000));
-    this.renderRoot.insertAdjacentHTML("beforeend", `
+    const host = document.createElement("div");
+    host.innerHTML = `
       <div class="overlay">
         <div class="dialog">
           <button class="close" type="button">&times;</button>
@@ -176,7 +177,8 @@ class RensonClimateCard extends HTMLElement {
           <button class="apply" type="button">${t(lang, "override_apply")}</button>
         </div>
       </div>
-    `);
+    `;
+    this.renderRoot.appendChild(host.firstElementChild);
     const overlay = this.renderRoot.querySelector(".overlay");
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) this._closeDialog(false);
