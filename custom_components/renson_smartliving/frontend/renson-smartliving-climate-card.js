@@ -63,14 +63,18 @@ class RensonClimateCard extends HTMLElement {
     // "tot wanneer?"-popup. De wijziging is dan al toegepast met de
     // default expiration; de popup past die nadien aan.
     const entity = hass.states[this._config.entity];
-    const temp = entity && entity.attributes
-      ? entity.attributes.temperature : undefined;
+    const attrs = entity ? entity.attributes || {} : {};
+    const temp = attrs.temperature;
+    const preset = attrs.preset_mode;
     if (
       temp !== undefined &&
       prevTemp !== undefined &&
       Number(temp) !== Number(prevTemp) &&
+      preset === "none" &&
       !this._dialog
     ) {
+      // alleen bij een echte override: preset-kliks (auto/away) wijzigen
+      // de temperatuur ook, maar mogen geen popup geven
       this._askOverride(Number(temp));
     }
     this._lastTemp = temp;
