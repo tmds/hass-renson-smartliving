@@ -158,46 +158,6 @@ class RensonClimateCard extends HTMLElement {
       String(d.getMinutes()).padStart(2, "0");
   }
 
-  _askOverride(temperature, realHass) {
-    const hours = this._defaultHours();
-    this._dialog = {
-      temperature,
-      mode: "hours",
-      hours,
-      until: this._fmtClock(new Date(Date.now() + hours * 3600000)),
-      permanent: false,
-    };
-    this._renderDialog();
-    return new Promise((resolve) => {
-      this._dialogResolve = () => {
-        this._dialogResolve = null;
-        resolve();
-      };
-    });
-  }
-
-  _closeDialog(apply) {
-    const d = this._dialog;
-    const overlay = this.renderRoot.querySelector(".overlay");
-    if (overlay) overlay.remove();
-    this._dialog = null;
-    if (apply && d && this._hass) {
-      const payload = {
-        entity_id: this._config.entity,
-        temperature: d.temperature,
-      };
-      if (d.permanent) {
-        payload.permanent = true;
-      } else if (d.mode === "until") {
-        payload.until = d.until;
-      } else {
-        payload.hours = d.hours;
-      }
-      this._hass.callService("renson_smartliving", "set_thermostat_override", payload);
-    }
-    if (this._dialogResolve) this._dialogResolve();
-  }
-
   _renderDialog() {
     const d = this._dialog;
     if (!d) return;
