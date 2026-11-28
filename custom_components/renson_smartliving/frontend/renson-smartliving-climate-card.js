@@ -45,6 +45,7 @@ class RensonClimateCard extends HTMLElement {
   }
 
   set hass(hass) {
+    const prevTemp = this._lastTemp;
     this._hass = hass;
     const lang = (hass.locale && hass.locale.language) || "en";
     if (lang !== this._lang && this.renderRoot) {
@@ -53,43 +54,63 @@ class RensonClimateCard extends HTMLElement {
     }
     this._lang = lang;
     if (this._tile) {
-      this._tile.hass = this._wrapHass(hass);
+      this._tile.hass = hass;
     }
     this._renderPresets();
+    // Handmatige temperatuurwijziging (via de +/- knoppen van de native
+    // card, die hun service via de lovelace API-context sturen en dus
+    // niet te intercepten zijn): zodra de setpoint verandert, vraag de
+    // "tot wanneer?"-popup. De wijziging is dan al toegepast met de
+    // default expiration; de popup past die nadien aan.
+    const entity = hass.states[this._config.entity];
+    const temp = entity && entity.attributes
+      ? entity.attributes.temperature : undefined;
+    if (
+      temp !== undefined &&
+      prevTemp !== undefined &&
+      Number(temp) !== Number(prevTemp) &&
+      !this._dialog
+    ) {
+      this._askOverride(Number(temp));
+    }
+    this._lastTemp = temp;
   }
 
   getCardSize() {
     return 5;
   }
 
-  _wrapHass(hass) {
-    // Alleen de tile krijgt de proxy: set_temperature op deze entiteit
-    // gaat eerst door de "tot wanneer?"-dialog.
-    const card = this;
-    return new Proxy(hass, {
-      get(target, prop) {
-        if (prop === "callService") {
-          return (domain, service, data, tgt) =>
-            card._interceptCall(target, domain, service, data, tgt);
-        }
-        const v = target[prop];
-        return typeof v === "function" ? v.bind(target) : v;
-      },
-    });
+  _askOverride(temperature) {
+    const hours = this._defaultHours();
+    this._dialog = {
+      temperature,
+      mode: "hours",
+      hours,
+      until: this._fmtClock(new Date(Date.now() + hours * 3600000)),
+      permanent: false,
+    };
+    this._renderDialog();
   }
 
-  _interceptCall(realHass, domain, service, data, tgt) {
-    const entityId = (tgt && tgt.entity_id) || (data && data.entity_id);
-    if (
-      domain === "climate" &&
-      service === "set_temperature" &&
-      entityId === this._config.entity &&
-      data &&
-      data.temperature !== undefined
-    ) {
-      return this._askOverride(Number(data.temperature), realHass);
+  _closeDialog(apply) {
+    const d = this._dialog;
+    const overlay = this.renderRoot.querySelector(".overlay");
+    if (overlay) overlay.remove();
+    this._dialog = null;
+    if (apply && d && this._hass) {
+      const payload = {
+        entity_id: this._config.entity,
+        temperature: d.temperature,
+      };
+      if (d.permanent) {
+        payload.permanent = true;
+      } else if (d.mode === "until") {
+        payload.until = d.until;
+      } else {
+        payload.hours = d.hours;
+      }
+      this._hass.callService("renson_smartliving", "set_thermostat_override", payload);
     }
-    return realHass.callService(domain, service, data, tgt);
   }
 
   _defaultHours() {
@@ -211,7 +232,7 @@ class RensonClimateCard extends HTMLElement {
     if (this._tile) return;
     const helpers = await window.loadCardHelpers();
     this._tile = helpers.createCardElement(this._tileConfig);
-    if (this._hass) this._tile.hass = this._wrapHass(this._hass);
+    if (this._hass) this._tile.hass = this._hass;
     this._tile.addEventListener("ll-rebuild", () => {
       this._tile = null;
       this._ensureTile().then(() => this._render());
