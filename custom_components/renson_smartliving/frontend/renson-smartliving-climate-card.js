@@ -13,7 +13,7 @@
  *   entity: climate.keuken
  *   features: []            # optional, forwarded to the native card
  */
-import { t } from "./renson-smartliving-common.js?v=0.2.2";
+import { t } from "./renson-smartliving-common.js?v=2";
 
 const PRESETS = [
   { ha: "auto", key: "auto" },
@@ -69,8 +69,8 @@ class RensonClimateCard extends HTMLElement {
     return new Proxy(hass, {
       get(target, prop) {
         if (prop === "callService") {
-          return (domain, service, data) =>
-            card._interceptCall(target, domain, service, data);
+          return (domain, service, data, tgt) =>
+            card._interceptCall(target, domain, service, data, tgt);
         }
         const v = target[prop];
         return typeof v === "function" ? v.bind(target) : v;
@@ -78,17 +78,18 @@ class RensonClimateCard extends HTMLElement {
     });
   }
 
-  _interceptCall(realHass, domain, service, data) {
+  _interceptCall(realHass, domain, service, data, tgt) {
+    const entityId = (tgt && tgt.entity_id) || (data && data.entity_id);
     if (
       domain === "climate" &&
       service === "set_temperature" &&
+      entityId === this._config.entity &&
       data &&
-      data.entity_id === this._config.entity &&
       data.temperature !== undefined
     ) {
       return this._askOverride(Number(data.temperature), realHass);
     }
-    return realHass.callService(domain, service, data);
+    return realHass.callService(domain, service, data, tgt);
   }
 
   _defaultHours() {
