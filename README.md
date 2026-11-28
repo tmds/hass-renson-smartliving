@@ -17,10 +17,58 @@ The OpenMotics "entities" are mapped as follows to Home Assistant entities:
 | Sensor (temperature, humidity, co2, power) | Sensor |
 | Input | Event (press/release) |
 | Group Action | Scene |
+| Thermostat | Climate |
 
 The entity ids are formatted: `{hass_platform}.{room}_{name}`, for example, `light.living_eettafel`. When the room name and entity name match, the room name is omitted. Sensor names are prefixed with the type of sensor, for example: `sensor.temp_bureau`. Group action scenes are prefixed with `ga_`, for example: `scene.ga_all_off`.
 
 When the names/rooms change in the smart living system, the entities provided by the integration will change to match. Stale entities are automatically removed.
+
+## Services
+
+### Thermostats
+
+- `renson_smartliving.set_thermostat_schedule`: replace the heating schedule of a thermostat for one, several or all days. Setpoints are `{time: "HH:MM", temperature: x}` entries; a full week can be copied between thermostats with the `week` field.
+
+  ```yaml
+  service: renson_smartliving.set_thermostat_schedule
+  target:
+    entity_id: climate.living
+  data:
+    setpoints:
+      - {time: "06:30", temperature: 20}
+      - {time: "22:00", temperature: 17}
+  ```
+
+- `renson_smartliving.set_thermostat_config`: set the away temperature and the lead time (early heating, minutes before a schedule setpoint).
+
+Setting a temperature on the climate entity writes the setpoint with a preset expiration (default 2 hours, configurable per config entry); returning the preset to `auto` resumes the schedule.
+
+### Gateway configuration
+
+The `renson-smartliving-gateway-config` Lovelace card configures the gateway from one place, styled after the Home Assistant settings UI.
+
+![Gateway configuration: inputs](docs/screenshots/gateway-config-inputs.png)
+
+- **Inputs**: every input (button) entity, grouped per room. Each row shows what the input is linked to (an output, a screen or a gateway automation, including short/long-press automations); the Link button opens a dialog to relink or unlink. Inputs with extended gateway actions warn before overwriting them (`force` required).
+- **Automations**: a visual editor for the gateway automations (group actions), decoded from the gateway bytecode into IF/AND/OR/THEN/ELSE blocks with dimmer, timer and shutter actions.
+
+  ![Gateway automations](docs/screenshots/gateway-config-automations.png)
+
+- **Screens**: the travel timers (`timer_up` / `timer_down`, seconds) of every screen.
+
+  ![Screens](docs/screenshots/gateway-config-screens.png)
+
+- **Thermostats**: per-room overview with current temperature, target, active preset and today's schedule; "Edit schedule" opens the schedule editor in a dialog.
+
+  ![Thermostats](docs/screenshots/gateway-config-thermostats.png)
+
+Services behind the card:
+
+- `renson_smartliving.set_input_link`: link an input (button) directly to an output, a screen or a gateway automation. A linked input acts on the gateway itself, even without Home Assistant running. Omit the target to unlink; inputs with extended gateway actions require `force: true` because linking or unlinking erases them. Automations support short/long press: `group_action_id` runs on a short press, `group_action_id_long` on a long press (>2s hold).
+- `renson_smartliving.get_group_actions`: read all gateway automations plus the output/shutter/input name maps.
+- `renson_smartliving.save_group_action`: create or update an automation (`id`, `name`, `actions` as comma-separated bytecode pairs, `show_in_app`). The integration validates the bytecode before writing, because the gateway silently drops unsupported action types.
+- `renson_smartliving.run_group_action`: trigger an automation by id.
+- `renson_smartliving.set_shutter_timings`: set the travel timers of a shutter. These drive the gateway's position estimate and the position slider.
 
 ## Installation
 

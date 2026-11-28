@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
@@ -14,6 +14,20 @@ from custom_components.renson_smartliving.coordinator import (
     OpenMoticsCoordinator,
 )
 from tests.fixtures import PLATFORM_DETAILS
+
+
+@pytest.fixture
+def client():
+    return OpenMoticsClient("gw.local", "user", "pass")
+
+
+@pytest.fixture
+def mock_session(client: OpenMoticsClient):
+    """Create a mock aiohttp session and patch it onto the client."""
+    session = MagicMock()
+    session.closed = False
+    with patch.object(client, "_get_session", return_value=session):
+        yield session
 
 
 @pytest.fixture

@@ -4,11 +4,22 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import callback
 
 from .api import AuthenticationError, OpenMoticsClient
-from .const import CONF_HOST, DOMAIN
+from .const import (
+    CONF_HOST,
+    CONF_PRESET_EXPIRATION_HOURS,
+    DEFAULT_PRESET_EXPIRATION_HOURS,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,10 +48,48 @@ async def _connect_and_get_details(
         await client.close()
 
 
+class OpenMoticsOptionsFlowHandler(OptionsFlow):
+    """Options flow: thermostat preset expiration."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        current_hours = self.config_entry.options.get(
+            CONF_PRESET_EXPIRATION_HOURS, DEFAULT_PRESET_EXPIRATION_HOURS
+        )
+        if user_input is not None:
+            hours = user_input.get(
+                CONF_PRESET_EXPIRATION_HOURS, DEFAULT_PRESET_EXPIRATION_HOURS
+            )
+            data = dict(self.config_entry.options)
+            data[CONF_PRESET_EXPIRATION_HOURS] = int(hours)
+            return self.async_create_entry(title="", data=data)
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_PRESET_EXPIRATION_HOURS,
+                    default=current_hours,
+                    description={"suggested_value": current_hours},
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=48)),
+            }
+        )
+        return self.async_show_form(
+            step_id="init", data_schema=schema
+        )
+
+
 class OpenMoticsConfigFlow(ConfigFlow, domain=DOMAIN):
     """Config flow for OpenMotics gateway."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: ConfigEntry,
+    ) -> OpenMoticsOptionsFlowHandler:
+        """Get the options flow for this handler."""
+        return OpenMoticsOptionsFlowHandler()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -56,7 +105,8 @@ class OpenMoticsConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected error during config flow")
                 errors["base"] = "cannot_connect"
             else:
-                # MAC address as unique_id prevents duplicate entries for the same gateway.
+                # MAC address as unique_id prevents duplicate entries
+                # for the same gateway.
                 mac = platform_details.get("mac_address", "")
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()

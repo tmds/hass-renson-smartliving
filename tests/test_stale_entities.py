@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.renson_smartliving.coordinator import OpenMoticsCoordinator
-from custom_components.renson_smartliving.light import OpenMoticsLight
 from custom_components.renson_smartliving.entity import remove_stale_entities
+from custom_components.renson_smartliving.light import OpenMoticsLight
 from tests.fixtures import make_naming
 
 

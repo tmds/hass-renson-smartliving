@@ -1,0 +1,119 @@
+/**
+ * Renson schedule button: opens the thermostat schedule editor popup.
+ *
+ * Uses the shared dialog (same look as the gateway configuration card).
+ *
+ * Config:
+ *   type: custom:renson-smartliving-schedule-button
+ *   entity: climate.praktijk
+ */
+import { t, openDialog, scheduleStripCSS, scheduleStripHTML } from "./renson-smartliving-common.js?v=0.2.4";
+
+class RensonScheduleButton extends HTMLElement {
+  static getStubConfig() {
+    return { entity: "" };
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    const lang = (hass.locale && hass.locale.language) || "en";
+    if (lang !== this._lang) {
+      this._lang = lang;
+      this._renderShell();
+    }
+    this._renderStrip();
+    if (this._overlay && this._overlay.isConnected && this._editor) {
+      this._editor.hass = hass;
+    }
+  }
+
+  _renderStrip() {
+    if (!this.renderRoot || !this._hass) return;
+    const strip = this.renderRoot.querySelector(".mini");
+    if (!strip) return;
+    const entity = this._hass.states[this._config.entity];
+    strip.innerHTML = scheduleStripHTML(entity, { labels: false });
+  }
+
+  setConfig(config) {
+    if (!config.entity) {
+      throw new Error("Please define an entity");
+    }
+    this._config = config;
+    if (!this.renderRoot) {
+      this.renderRoot = this.attachShadow({ mode: "open" });
+    }
+    this._renderShell();
+  }
+
+  getCardSize() {
+    return 1;
+  }
+
+  _renderShell() {
+    this.renderRoot.innerHTML = `
+      <style>
+        :host { display: block; }
+        ${scheduleStripCSS()}
+        button {
+          width: 100%;
+          border: none;
+          background: var(--secondary-background-color);
+          color: var(--primary-text-color);
+          border-radius: 16px; padding: 12px 14px;
+          cursor: pointer;
+          font-family: inherit;
+          display: flex; flex-direction: column; gap: 8px; align-items: stretch;
+          transition: background .2s ease;
+        }
+        button:hover { background: rgba(var(--rgb-primary-text-color, 255, 255, 255), .08); }
+        .lblrow {
+          display: flex; align-items: center; gap: 8px;
+          font-size: .9em; font-weight: 600; text-align: left;
+        }
+        .lblrow ha-icon { --mdc-icon-size: 18px; color: var(--primary-color); }
+        .mini .schedbar { height: 8px; border-radius: 4px; }
+        .mini .schedhover { display: none; }
+        .mini .nowmark { width: 2px; }
+      </style>
+      <button>
+        <span class="lblrow">
+          <ha-icon icon="mdi:calendar-edit"></ha-icon>
+          <span>${t(this._lang, "configure_schedule")}</span>
+        </span>
+        <span class="mini"></span>
+      </button>
+    `;
+    this._renderStrip();
+    this.renderRoot.querySelector("button").addEventListener("click", () => {
+      // Zelfde dialog als in het control panel (gateway-config card):
+      // wide + ingesloten editor met de panel-padding.
+      const overlay = openDialog(this, { title: t(this._lang, "gw_edit_schedule"), bodyHTML: "", wide: true });
+      const body = overlay.querySelector(".dlg-body");
+      body.style.padding = "4px 20px 20px";
+      this._editor = document.createElement("renson-smartliving-thermostat-config-card");
+      this._editor.setConfig({ entity: this._config.entity, embedded: true });
+      if (this._hass) this._editor.hass = this._hass;
+      body.appendChild(this._editor);
+      this._overlay = overlay;
+      // Keep the editor's hass fresh while the dialog is open.
+      this._refreshTimer = setInterval(() => {
+        if (!overlay.isConnected) {
+          clearInterval(this._refreshTimer);
+          this._overlay = null;
+          return;
+        }
+        if (this._hass) this._editor.hass = this._hass;
+      }, 1000);
+    });
+  }
+}
+
+customElements.define("renson-smartliving-schedule-button", RensonScheduleButton);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "renson-smartliving-schedule-button",
+  name: "Renson Schedule Button",
+  description: "Opens the OpenMotics thermostat schedule editor in a popup",
+});

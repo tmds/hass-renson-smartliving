@@ -8,7 +8,6 @@ from custom_components.renson_smartliving.coordinator import (
 )
 from custom_components.renson_smartliving.event import OpenMoticsEvent
 from tests.fixtures import (
-    PLATFORM_DETAILS,
     SAMPLE_CONFIG,
     SAMPLE_OUTPUT_STATUS,
     SAMPLE_SHUTTER_STATUS,

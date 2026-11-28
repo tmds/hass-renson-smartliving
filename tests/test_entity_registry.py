@@ -1,4 +1,4 @@
-"""Tests for entity registry updates in async_added_to_hass — name override and area assignment."""
+"""Tests for entity registry updates: name override and area assignment."""
 
 from __future__ import annotations
 
@@ -6,7 +6,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from custom_components.renson_smartliving.coordinator import EntityNaming, OpenMoticsCoordinator
+from custom_components.renson_smartliving.coordinator import (
+    EntityNaming,
+    OpenMoticsCoordinator,
+)
 from custom_components.renson_smartliving.light import OpenMoticsLight
 
 
@@ -16,7 +19,7 @@ def _make_entity(
     name: str = "Kitchen",
     room_id: int | None = None,
 ) -> OpenMoticsLight:
-    return OpenMoticsLight(
+    entity = OpenMoticsLight(
         coordinator=coordinator,
         naming=EntityNaming(
             unique_id="test",
@@ -28,6 +31,8 @@ def _make_entity(
         supports_brightness=False,
         room_id=room_id,
     )
+    entity.hass = MagicMock()
+    return entity
 
 
 @pytest.fixture

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import ssl
-from typing import Any
+from typing import Any, cast
 
 import aiohttp
 from homeassistant.exceptions import HomeAssistantError
@@ -23,6 +24,7 @@ WS_SUBSCRIPTION_TYPES = [
     "SHUTTER_CONTROL",
     "ROOM_CONTROL",
     "GROUP_ACTION_CONTROL",
+    "THERMOSTAT_CONTROL",
     # System (flushed by sync/control)
     "VERSION",
     "PLATFORM_DETAILS",
@@ -31,6 +33,8 @@ WS_SUBSCRIPTION_TYPES = [
     "INPUT_CHANGE",
     "SENSOR_CHANGE",
     "SHUTTER_CHANGE",
+    "THERMOSTAT_CHANGE",
+    "THERMOSTAT_GROUP_CHANGE",
 ]
 
 
@@ -131,18 +135,19 @@ class OpenMoticsClient:
         params: dict[str, Any] | None = None,
         *,
         retry: bool = True,
-    ) -> dict[str, Any]:
+        json_body: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | list[Any]:
         """Make an authenticated request with retry on transient failures."""
         if self._token is None:
             await self.login()
 
         if not retry:
-            return await self._do_request(method, path, params)
+            return await self._do_request(method, path, params, json_body=json_body)
 
         last_exc: Exception | None = None
         for attempt in range(1 + self._MAX_RETRIES):
             try:
-                return await self._do_request(method, path, params)
+                return await self._do_request(method, path, params, json_body=json_body)
             except self._TRANSIENT_EXCEPTIONS as exc:
                 last_exc = exc
                 if attempt < self._MAX_RETRIES:
@@ -171,18 +176,20 @@ class OpenMoticsClient:
         params: dict[str, Any] | None = None,
         *,
         timeout: aiohttp.ClientTimeout | None = None,
-    ) -> dict[str, Any]:
+        json_body: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | list[Any]:
         """Single attempt: send request, handle 401 re-auth."""
         session = self._get_session()
         url = f"{self._base_url}{path}"
         headers = {"Authorization": f"Bearer {self._token}"}
-        _HTTP_LOGGER.debug("%s %s %s", method, path, params or "")
+        _HTTP_LOGGER.debug("%s %s %s", method, path, params or json_body or "")
 
         async with session.request(
             method,
             url,
             params=params,
             headers=headers,
+            json=json_body,
             ssl=self._ssl,
             timeout=timeout,
         ) as resp:
@@ -191,21 +198,36 @@ class OpenMoticsClient:
                 await self.login()
                 headers = {"Authorization": f"Bearer {self._token}"}
                 async with session.request(
-                    method, url, params=params, headers=headers, ssl=self._ssl
+                    method,
+                    url,
+                    params=params,
+                    headers=headers,
+                    json=json_body,
+                    ssl=self._ssl,
                 ) as retry_resp:
                     return await self._read_response(path, retry_resp)
             return await self._read_response(path, resp)
 
     @staticmethod
-    async def _read_response(path: str, resp: aiohttp.ClientResponse) -> dict[str, Any]:
+    async def _read_response(
+        path: str, resp: aiohttp.ClientResponse
+    ) -> dict[str, Any] | list[Any]:
         """Read, log, and validate a gateway response."""
         if resp.status >= 400:
             raise OpenMoticsError(f"HTTP {resp.status}", status=resp.status)
         if resp.status == 204:
             _HTTP_LOGGER.debug("%s -> 204 No Content", path)
             return {}
-        data = await resp.json()
+        body = await resp.text()
+        if not body:
+            # V1 API PUT calls return 200 with an empty body.
+            _HTTP_LOGGER.debug("%s -> 200 empty body", path)
+            return {}
+        data: dict[str, Any] | list[Any] = json.loads(body)
         _HTTP_LOGGER.debug("%s -> %s", path, data)
+        if isinstance(data, list):
+            # V1 API list responses are raw JSON arrays.
+            return data
         if not data.get("success", True):
             raise OpenMoticsError(data.get("msg", "Unknown error"))
         return data
@@ -213,12 +235,23 @@ class OpenMoticsClient:
     async def get(
         self, path: str, params: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        return await self._request("GET", path, params)
+        result = await self._request("GET", path, params)
+        assert isinstance(result, dict)
+        return result
 
     async def post(
         self, path: str, params: dict[str, Any] | None = None, *, idempotent: bool
     ) -> dict[str, Any]:
-        return await self._request("POST", path, params, retry=idempotent)
+        result = await self._request("POST", path, params, retry=idempotent)
+        assert isinstance(result, dict)
+        return result
+
+    async def put(
+        self, path: str, json_body: dict[str, Any], *, retry: bool = True
+    ) -> dict[str, Any]:
+        result = await self._request("PUT", path, json_body=json_body, retry=retry)
+        assert isinstance(result, dict)
+        return result
 
     # -- Sync --
 
@@ -243,15 +276,71 @@ class OpenMoticsClient:
 
     async def get_output_status(self) -> list[dict[str, Any]]:
         data = await self.get("/get_output_status")
-        return data.get("status", [])
+        return cast(list[dict[str, Any]], data.get("status", []))
 
     async def get_shutter_status(self) -> dict[str, Any]:
         return await self.get("/get_shutter_status")
 
+    async def set_shutter_configuration(self, config: dict[str, Any]) -> None:
+        """Write a single shutter configuration (legacy endpoint, form params).
+
+        The gateway serializer resets missing fields to their defaults, so
+        callers MUST pass the complete current configuration merged with
+        the fields they want to change (see the input link pitfall).
+        """
+        await self.post(
+            "/set_shutter_configuration",
+            {"config": json.dumps(config)},
+            idempotent=False,
+        )
+
     async def get_input_configurations(self) -> list[dict[str, Any]]:
         data = await self.get("/get_input_configurations")
-        return data.get("config", [])
+        return cast(list[dict[str, Any]], data.get("config", []))
 
+    async def set_input_configuration(self, config: dict[str, Any]) -> None:
+        """Write a single input configuration (legacy endpoint, form params).
+
+        Only the fields present in ``config`` are written; the gateway
+        merges them into the stored input configuration.
+        """
+        await self.post(
+            "/set_input_configuration",
+            {"config": json.dumps(config)},
+            idempotent=False,
+        )
+
+    async def get_output_configurations(self) -> list[dict[str, Any]]:
+        data = await self.get("/get_output_configurations")
+        return cast(list[dict[str, Any]], data.get("config", []))
+
+    async def get_shutter_configurations(self) -> list[dict[str, Any]]:
+        data = await self.get("/get_shutter_configurations")
+        return cast(list[dict[str, Any]], data.get("config", []))
+
+    async def get_sensor_configurations(self) -> list[dict[str, Any]]:
+        data = await self.get("/get_sensor_configurations")
+        return cast(list[dict[str, Any]], data.get("config", []))
+
+    async def get_room_configurations(self) -> list[dict[str, Any]]:
+        data = await self.get("/get_room_configurations")
+        return cast(list[dict[str, Any]], data.get("config", []))
+
+    async def get_group_action_configurations(self) -> list[dict[str, Any]]:
+        data = await self.get("/get_group_action_configurations")
+        return cast(list[dict[str, Any]], data.get("config", []))
+
+    async def set_group_action_configuration(self, config: dict[str, Any]) -> None:
+        """Write a single group action (gateway automation) configuration.
+
+        Legacy endpoint with form params. The serializer only writes the
+        fields present in ``config`` (id, name, actions, show_in_app).
+        """
+        await self.post(
+            "/set_group_action_configuration",
+            {"config": json.dumps(config)},
+            idempotent=False,
+        )
     # -- Commands --
 
     async def set_output(
@@ -282,6 +371,38 @@ class OpenMoticsClient:
             "/do_group_action", {"group_action_id": group_action_id}, idempotent=False
         )
 
+    # -- Gateway settings --
+
+    async def get_timezone(self) -> str:
+        data = await self.get("/get_timezone")
+        return data.get("timezone", "UTC")
+
+    # -- Thermostats (V1 API) --
+
+    async def get_thermostat_control(self) -> list[dict[str, Any]]:
+        """Fetch all thermostats with their status from the V1 API.
+
+        Returns a raw list; each item has id, name, room and a
+        status dict with current_setpoint, current_temperature,
+        active_preset, state, mode, steering_power and
+        preset_expiration.
+        """
+        data = await self._request("GET", "/api/thermostat/control")
+        return data if isinstance(data, list) else []
+
+    async def set_thermostat_control(
+        self, thermostat_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Update a thermostat via the V1 API.
+
+        Payload fields (all optional): setpoint, active_preset
+        (auto|manual|away|party), state (on|off), preset_expiration
+        (ISO timestamp or null for a permanent override).
+        """
+        return await self.put(
+            f"/api/thermostat/control/{thermostat_id}", payload
+        )
+
     # -- WebSocket --
 
     async def connect_events(self) -> aiohttp.ClientWebSocketResponse:
@@ -310,7 +431,7 @@ class OpenMoticsClient:
 
     async def close(self) -> None:
         """Close the HTTP session."""
-        for task, session in self._closing.items():
+        for task, session in list(self._closing.items()):
             task.cancel()
             if not session.closed:
                 await session.close()
