@@ -174,13 +174,13 @@ class RensonClimateCard extends HTMLElement {
       const left = ((h * 30 - 30) / (1440 - 30)) * 100;
       ticks.push(`<span class="tick" style="left:${left}%">${h / 2}${t(lang, "hour_unit")}</span>`);
     }
-    // werkelijke klok-tijd per uur, boven de lijn (afgerond op hele uren)
+    // werkelijke klok-tijd per uur, boven de lijn (enkel het uurnummer)
     const timeticks = [];
     let last = "";
     for (let h = 1; h <= 24; h++) {
       const left = ((h * 60 - 30) / (1440 - 30)) * 100;
       const t2 = new Date(Date.now() + h * 3600000);
-      const lbl = String(t2.getHours()).padStart(2, "0") + ":00";
+      const lbl = String(t2.getHours());
       if (lbl === last) continue;
       last = lbl;
       timeticks.push(`<span class="timetick" style="left:${left}%">${lbl}</span>`);
@@ -197,8 +197,11 @@ class RensonClimateCard extends HTMLElement {
           })}</div>
           <div class="durlabel"></div>
           <div class="sliderwrap">
+            <ha-icon class="rowicon" icon="mdi:clock-outline"></ha-icon>
             <div class="timeticks">${timeticks.join("")}</div>
+            <span class="rowspacer"></span>
             <input type="range" class="dur" min="30" max="1440" step="30" value="${d.minutes}">
+            <ha-icon class="rowicon" icon="mdi:timer-outline"></ha-icon>
             <div class="ticks">${ticks.join("")}</div>
           </div>
           <div class="row">
@@ -333,26 +336,34 @@ class RensonClimateCard extends HTMLElement {
         .dialog .durlabel {
           font-size: .95em; font-weight: 700; margin-bottom: 6px;
         }
-        .dialog .sliderwrap { position: relative; margin: 4px 0 14px; }
+        .dialog .sliderwrap {
+          display: grid; grid-template-columns: 22px 1fr; column-gap: 6px;
+          align-items: center; margin: 4px 0 14px;
+        }
+        .dialog .rowicon {
+          --mdc-icon-size: 16px;
+          color: var(--secondary-text-color);
+        }
+        .dialog .rowspacer { display: block; }
         .dialog input[type="range"] {
           width: 100%; accent-color: var(--primary-color);
           cursor: pointer;
         }
-        .dialog .ticks {
-          position: relative; height: 14px; margin-top: 2px;
-          font-size: .58em; color: var(--secondary-text-color);
-        }
-        .dialog .tick {
-          position: absolute; transform: translateX(-50%);
-        }
         .dialog .timeticks {
-          position: relative; height: 14px; margin-bottom: 2px;
+          position: relative; height: 14px;
           font-size: .58em; color: var(--primary-text-color);
           font-weight: 600;
         }
         .dialog .timetick {
           position: absolute; transform: translateX(-50%);
           top: 0;
+        }
+        .dialog .ticks {
+          position: relative; height: 14px;
+          font-size: .58em; color: var(--secondary-text-color);
+        }
+        .dialog .tick {
+          position: absolute; transform: translateX(-50%);
         }
         .dialog .row {
           display: flex; justify-content: space-between; align-items: center;
