@@ -180,7 +180,7 @@ class RensonClimateCard extends HTMLElement {
     for (let h = 1; h <= 24; h++) {
       const left = ((h * 60 - 30) / (1440 - 30)) * 100;
       const t2 = new Date(Date.now() + h * 3600000);
-      const lbl = String(t2.getHours());
+      const lbl = String(t2.getHours()) + t(lang, "hour_unit");
       if (lbl === last) continue;
       last = lbl;
       timeticks.push(`<span class="timetick" style="left:${left}%">${lbl}</span>`);
