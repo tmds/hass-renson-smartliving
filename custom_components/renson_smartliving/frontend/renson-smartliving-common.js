@@ -7,6 +7,14 @@
 
 const STRINGS = {
   en: {
+    auto: "Auto",
+    manual: "Manual",
+    hour_unit: "h",
+    override_title: "Until when?",
+    override_hint: "Setpoint {temp}\u00B0, default until {end}",
+    override_until: "Until (time)",
+    override_permanent: "Permanent (no end time)",
+    override_apply: "Apply",
     hvac_mode_heating: "HVAC mode: heating",
     hvac_mode_cooling: "HVAC mode: cooling",
     screen_timings: "Configure screen timings",
@@ -169,6 +177,14 @@ const STRINGS = {
     save_failed: "Saving failed:",
   },
   nl: {
+    auto: "Auto",
+    manual: "Handmatig",
+    hour_unit: "u",
+    override_title: "Tot wanneer?",
+    override_hint: "Setpoint {temp}\u00B0, standaard tot {end}",
+    override_until: "Tot (tijdstip)",
+    override_permanent: "Permanent (geen eindtijd)",
+    override_apply: "Toepassen",
     hvac_mode_heating: "HVAC-modus: verwarming",
     hvac_mode_cooling: "HVAC-modus: koeling",
     screen_timings: "Screentimers instellen",
