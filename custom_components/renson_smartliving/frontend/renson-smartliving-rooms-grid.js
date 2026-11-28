@@ -12,7 +12,7 @@
  *
  * Use in a panel view (type: panel) so the grid spans the full width.
  */
-import { t, esc, shortName } from "./renson-smartliving-common.js?v=0.2.2";
+import { t, esc, shortName } from "./renson-smartliving-common.js?v=0.2.3";
 
 class RensonRoomsGrid extends HTMLElement {
   static getStubConfig() {

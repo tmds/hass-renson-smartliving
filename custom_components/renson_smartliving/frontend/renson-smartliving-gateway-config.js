@@ -13,14 +13,14 @@
  * The shell is built once; tab switches only toggle visibility, and the
  * screens/thermostats lists re-render only when their data changes.
  */
-import "./renson-smartliving-common.js?v=0.2.2";
-import "./renson-smartliving-input-link-card.js?v=0.2.2";
-import "./renson-smartliving-automation-editor.js?v=0.2.2";
-import "./renson-smartliving-thermostat-config-card.js?v=0.2.2";
+import "./renson-smartliving-common.js?v=0.2.3";
+import "./renson-smartliving-input-link-card.js?v=0.2.3";
+import "./renson-smartliving-automation-editor.js?v=0.2.3";
+import "./renson-smartliving-thermostat-config-card.js?v=0.2.3";
 import {
   t, esc, shortName, openDialog, dialogCSS,
   scheduleStripCSS, scheduleStripHTML, fmtTemp,
-} from "./renson-smartliving-common.js?v=0.2.2";
+} from "./renson-smartliving-common.js?v=0.2.3";
 
 class RensonGatewayConfigCard extends HTMLElement {
   static getStubConfig() {

@@ -7,7 +7,7 @@
  *   type: custom:renson-smartliving-schedule-button
  *   entity: climate.praktijk
  */
-import { t, openDialog } from "./renson-smartliving-common.js?v=0.2.2";
+import { t, openDialog } from "./renson-smartliving-common.js?v=0.2.3";
 
 class RensonScheduleButton extends HTMLElement {
   static getStubConfig() {

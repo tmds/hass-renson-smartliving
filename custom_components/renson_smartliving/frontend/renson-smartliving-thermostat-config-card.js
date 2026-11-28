@@ -11,7 +11,7 @@
  *   type: custom:renson-smartliving-thermostat-config-card
  *   entity: climate.praktijk
  */
-import { t, esc, shortName, dayLabels, dayLabel } from "./renson-smartliving-common.js?v=0.2.2";
+import { t, esc, shortName, dayLabels, dayLabel } from "./renson-smartliving-common.js?v=0.2.3";
 
 class RensonThermostatConfigCard extends HTMLElement {
   static getStubConfig() {

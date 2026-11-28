@@ -10,7 +10,7 @@
  *   type: custom:renson-smartliving-screen-timings-button
  *   entity: cover.keuken_screen_keuken
  */
-import { t } from "./renson-smartliving-common.js?v=0.2.2";
+import { t } from "./renson-smartliving-common.js?v=0.2.3";
 
 class RensonScreenTimingsButton extends HTMLElement {
   static getStubConfig() {
