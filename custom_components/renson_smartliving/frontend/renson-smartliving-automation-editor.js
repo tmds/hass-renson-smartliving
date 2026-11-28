@@ -12,7 +12,7 @@
  *   type: custom:renson-smartliving-automation-editor
  *   title: (optional heading)
  */
-import { t, esc } from "./renson-smartliving-common.js?v=0.2.3";
+import { t, esc } from "./renson-smartliving-common.js?v=0.2.4";
 
 /* ------------------------------------------------------------------ */
 /* Bytecode codec (mirrors gateway GroupActionMapper, fw 3.9.9)        */
