@@ -344,6 +344,9 @@ class RensonClimateCard extends HTMLElement {
           --mdc-icon-size: 16px;
           color: var(--secondary-text-color);
         }
+        .dialog .rowicon[icon="mdi:timer-outline"] {
+          position: relative; top: -5px;
+        }
         .dialog .rowspacer { display: block; }
         .dialog input[type="range"] {
           width: 100%; accent-color: var(--primary-color);
