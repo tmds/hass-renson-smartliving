@@ -175,6 +175,7 @@ class RensonClimateCard extends HTMLElement {
       ticks.push(`<span class="tick" style="left:${left}%">${h / 2}${t(lang, "hour_unit")}</span>`);
     }
     // werkelijke klok-tijd per HALF uur, boven de lijn (schone :00/:30)
+    // in twee staggerede rijen zodat 48 labels leesbaar blijven
     const base = new Date();
     base.setSeconds(0, 0);
     base.setMinutes(base.getMinutes() < 30 ? 30 : 60);
@@ -184,7 +185,8 @@ class RensonClimateCard extends HTMLElement {
       const pos = Math.round((t2 - Date.now()) / 60000);
       if (pos < 30 || pos > 1440) continue;
       const left = ((pos - 30) / (1440 - 30)) * 100;
-      timeticks.push(`<span class="timetick" style="left:${left}%">${this._fmtClock(t2)}</span>`);
+      const half = t2.getMinutes() === 30;
+      timeticks.push(`<span class="timetick ${half ? "half" : ""}" style="left:${left}%">${this._fmtClock(t2)}</span>`);
     }
     const host = document.createElement("div");
     host.innerHTML = `
@@ -347,12 +349,17 @@ class RensonClimateCard extends HTMLElement {
           position: absolute; transform: translateX(-50%);
         }
         .dialog .timeticks {
-          position: relative; height: 14px; margin-bottom: 2px;
-          font-size: .58em; color: var(--primary-text-color);
+          position: relative; height: 26px; margin-bottom: 2px;
+          font-size: .52em; color: var(--primary-text-color);
           font-weight: 600;
         }
         .dialog .timetick {
           position: absolute; transform: translateX(-50%);
+          top: 0;
+        }
+        .dialog .timetick.half {
+          top: 13px; font-weight: 400;
+          color: var(--secondary-text-color);
         }
         .dialog .row {
           display: flex; justify-content: space-between; align-items: center;
