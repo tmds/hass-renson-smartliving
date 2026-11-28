@@ -102,28 +102,37 @@ class RensonClimateCard extends HTMLElement {
 
   _askOverride(temperature, prefill) {
     const hours = this._defaultHours();
-    // default = de HUIDIGE expiratie als er al een override actief is
-    let current = null;
-    if (!prefill || !prefill.until) {
-      const e = this._hass && this._hass.states[this._config.entity];
-      const exp = e && e.attributes ? e.attributes.override_expiration : null;
-      if (exp) {
-        const d = new Date(exp);
-        if (!isNaN(d.getTime())) current = this._fmtClock(d);
-      }
+    // slots: eindtijden op schone halve uren (:00/:30), tot 24h vooruit
+    const base = new Date();
+    base.setSeconds(0, 0);
+    base.setMinutes(base.getMinutes() < 30 ? 30 : 60);
+    const slots = [];
+    for (let k = 0; k < 48; k++) {
+      const t = new Date(base.getTime() + k * 1800000);
+      if (t - Date.now() > 14400000 * 6) break;
+      slots.push(t);
     }
-    const until = (prefill && prefill.until) || current
-      || this._fmtClock(new Date(Date.now() + hours * 3600000));
-    // slider in minuten (30-min grid); bij een actieve override de
-    // resterende minuten, afgerond op een half uur
-    let minutes = Math.round((this._todayAt(until) - Date.now()) / 60000);
-    if (!(minutes > 0)) minutes = Math.round(hours * 60);
-    minutes = Math.max(30, Math.min(1440, Math.round(minutes / 30) * 30));
+    // default: huidige expiratie (prefill) of de geconfigureerde duur;
+    // kies de dichtstbijzijnde slot
+    let target = prefill && prefill.until
+      ? this._todayAt(prefill.until).getTime()
+      : (this._hass && this._hass.states[this._config.entity]
+          && this._hass.states[this._config.entity].attributes
+          ? this._hass.states[this._config.entity].attributes.override_expiration
+          : null);
+    if (!target) {
+      target = Date.now() + hours * 3600000;
+    }
+    let idx = 0;
+    let best = Infinity;
+    slots.forEach((t, i) => {
+      const diff = Math.abs(t.getTime() - Number(target));
+      if (diff < best) { best = diff; idx = i; }
+    });
+    this._slots = slots;
     this._dialog = {
       temperature,
-      mode: (prefill && prefill.until) || current ? "until" : "hours",
-      minutes,
-      until,
+      idx,
       permanent: false,
     };
     this._renderDialog();
@@ -141,10 +150,10 @@ class RensonClimateCard extends HTMLElement {
       };
       if (d.permanent) {
         payload.permanent = true;
-      } else if (d.mode === "until") {
-        payload.until = d.until;
       } else {
-        payload.hours = d.minutes / 60;
+        const slot = (this._slots || [])[d.idx];
+        if (!slot) return;
+        payload.until = this._fmtClock(slot);
       }
       this._hass.callService("renson_smartliving", "set_thermostat_override", payload);
     }
@@ -165,26 +174,31 @@ class RensonClimateCard extends HTMLElement {
 
   _renderDialog() {
     const d = this._dialog;
-    if (!d) return;
+    const slots = this._slots || [];
+    if (!d || !slots.length) return;
     const lang = this._lang;
-    const defEnd = this._fmtClock(new Date(Date.now() + d.minutes * 60000));
-    // alle uren van de komende 24h als labels (geen klikken)
-    const ticks = [];
-    for (let h = 2; h <= 48; h += 2) {
-      const left = ((h * 30 - 30) / (1440 - 30)) * 100;
-      ticks.push(`<span class="tick" style="left:${left}%">${h / 2}${t(lang, "hour_unit")}</span>`);
-    }
-    // werkelijke klok-tijd per uur, boven de lijn (enkel het uurnummer)
+    const fmtDur = (ms) => {
+      const mins = Math.max(1, Math.round(ms / 60000));
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return (h ? h + t(lang, "hour_unit") : "") +
+        (m ? (h ? " " : "") + m + t(lang, "min_unit") : "");
+    };
+    // boven: klok-labels op hele uren; onder: duur-markeringen (1h, 2h, ...)
+    const N = slots.length;
     const timeticks = [];
-    let last = "";
-    for (let h = 1; h <= 24; h++) {
-      const left = ((h * 60 - 30) / (1440 - 30)) * 100;
-      const t2 = new Date(Date.now() + h * 3600000);
-      const lbl = String(t2.getHours()) + t(lang, "hour_unit");
-      if (lbl === last) continue;
-      last = lbl;
-      timeticks.push(`<span class="timetick" style="left:${left}%">${lbl}</span>`);
-    }
+    const durticks = [];
+    slots.forEach((t, i) => {
+      const left = (i / (N - 1)) * 100;
+      if (t.getMinutes() === 0) {
+        timeticks.push(`<span class="timetick" style="left:${left}%">${t.getHours()}${t(lang, "hour_unit")}</span>`);
+      }
+      const durH = (t.getTime() - Date.now()) / 3600000;
+      if (Math.abs(durH - Math.round(durH)) < 2 / 60 && Math.round(durH) >= 1) {
+        durticks.push(`<span class="tick" style="left:${left}%">${Math.round(durH)}${t(lang, "hour_unit")}</span>`);
+      }
+    });
+    const slot = slots[d.idx];
     const host = document.createElement("div");
     host.innerHTML = `
       <div class="overlay">
@@ -193,20 +207,20 @@ class RensonClimateCard extends HTMLElement {
           <h3>${t(lang, "override_title")}</h3>
           <div class="hint">${t(lang, "override_hint", {
             temp: d.temperature.toFixed(1).replace(/\.0$/, ""),
-            end: defEnd,
+            end: this._fmtClock(slot),
           })}</div>
           <div class="durlabel"></div>
           <div class="sliderwrap">
             <ha-icon class="rowicon" icon="mdi:clock-outline"></ha-icon>
             <div class="timeticks">${timeticks.join("")}</div>
             <span class="rowspacer"></span>
-            <input type="range" class="dur" min="30" max="1440" step="30" value="${d.minutes}">
+            <input type="range" class="dur" min="0" max="${N - 1}" step="1" value="${d.idx}">
             <ha-icon class="rowicon" icon="mdi:timer-outline"></ha-icon>
-            <div class="ticks">${ticks.join("")}</div>
+            <div class="ticks">${durticks.join("")}</div>
           </div>
           <div class="row">
             <label>${t(lang, "override_until")}</label>
-            <input type="time" class="until" value="${d.until}">
+            <input type="time" class="until" value="${this._fmtClock(slot)}">
           </div>
           <div class="row">
             <label>${t(lang, "override_permanent")}</label>
@@ -224,40 +238,31 @@ class RensonClimateCard extends HTMLElement {
     overlay.querySelector(".close").addEventListener("click", () => this._closeDialog(false));
     const label = overlay.querySelector(".durlabel");
     const untilInput = overlay.querySelector(".until");
-    const fmtDur = (mins) => {
-      const h = Math.floor(mins / 60);
-      const m = mins % 60;
-      return (h ? h + t(lang, "hour_unit") : "") +
-        (m ? (h ? " " : "") + m + t(lang, "min_unit") : "");
-    };
     const syncLabel = () => {
-      const end = d.mode === "until"
-        ? d.until
-        : this._fmtClock(new Date(Date.now() + d.minutes * 60000));
-      label.textContent = d.mode === "until"
-        ? `${t(lang, "override_until")}: ${end}`
-        : `${fmtDur(d.minutes)} (${end})`;
-      untilInput.value = end;
+      const slot = slots[d.idx];
+      const dur = slot.getTime() - Date.now();
+      label.textContent = `${this._fmtClock(slot)} (${fmtDur(dur)})`;
+      untilInput.value = this._fmtClock(slot);
     };
     overlay.querySelector(".dur").addEventListener("input", (e) => {
-      d.mode = "hours";
-      d.minutes = Number(e.target.value);
+      d.idx = Number(e.target.value);
       d.permanent = false;
       overlay.querySelector(".perm").checked = false;
       syncLabel();
     });
     untilInput.addEventListener("change", (e) => {
-      d.mode = "until";
-      d.until = e.target.value || d.until;
+      const v = e.target.value;
+      if (!v) return;
+      // dichtstbijzijnde slot bij de gekozen tijd
+      const target = this._todayAt(v).getTime();
+      let best = Infinity;
+      slots.forEach((t, i) => {
+        const diff = Math.abs(t.getTime() - target);
+        if (diff < best) { best = diff; d.idx = i; }
+      });
       d.permanent = false;
       overlay.querySelector(".perm").checked = false;
-      // slider volgt de gekozen eindtijd (resterende minuten, op 30 min)
-      const mins = Math.round((this._todayAt(d.until) - Date.now()) / 60000);
-      if (mins >= 30) {
-        d.minutes = Math.min(1440, Math.round(mins / 30) * 30);
-        overlay.querySelector(".dur").value = d.minutes;
-        d.mode = "hours";
-      }
+      overlay.querySelector(".dur").value = d.idx;
       syncLabel();
     });
     overlay.querySelector(".perm").addEventListener("change", (e) => {
