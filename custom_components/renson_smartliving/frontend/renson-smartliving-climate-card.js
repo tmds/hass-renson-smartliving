@@ -21,7 +21,7 @@ const PRESETS = [
   { ha: "none", key: "manual" },
 ];
 
-const QUICK_HOURS = [1, 2, 4, 8];
+const QUICK_HOURS = [1, 2, 4, 8, 12, 14];
 
 class RensonClimateCard extends HTMLElement {
   static getStubConfig() {
@@ -102,13 +102,23 @@ class RensonClimateCard extends HTMLElement {
 
   _askOverride(temperature, prefill) {
     const hours = this._defaultHours();
+    // default = de HUIDIGE expiratie als er al een override actief is
+    let current = null;
+    if (!prefill || !prefill.until) {
+      const e = this._hass && this._hass.states[this._config.entity];
+      const exp = e && e.attributes ? e.attributes.override_expiration : null;
+      if (exp) {
+        const d = new Date(exp);
+        if (!isNaN(d.getTime())) current = this._fmtClock(d);
+      }
+    }
+    const until = (prefill && prefill.until) || current
+      || this._fmtClock(new Date(Date.now() + hours * 3600000));
     this._dialog = {
       temperature,
-      mode: prefill && prefill.until ? "until" : "hours",
+      mode: (prefill && prefill.until) || current ? "until" : "hours",
       hours,
-      until: prefill && prefill.until
-        ? prefill.until
-        : this._fmtClock(new Date(Date.now() + hours * 3600000)),
+      until,
       permanent: false,
     };
     this._renderDialog();
