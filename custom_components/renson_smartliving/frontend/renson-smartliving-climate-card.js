@@ -112,17 +112,11 @@ class RensonClimateCard extends HTMLElement {
       if (t - Date.now() > 14400000 * 6) break;
       slots.push(t);
     }
-    // default: huidige expiratie (prefill) of de geconfigureerde duur;
-    // kies de dichtstbijzijnde slot
+    // default: bij een pill-klik de huidige expiratie; bij een nieuwe
+    // override (watcher) de geconfigureerde default-duur
     let target = prefill && prefill.until
       ? this._todayAt(prefill.until).getTime()
-      : (this._hass && this._hass.states[this._config.entity]
-          && this._hass.states[this._config.entity].attributes
-          ? this._hass.states[this._config.entity].attributes.override_expiration
-          : null);
-    if (!target) {
-      target = Date.now() + hours * 3600000;
-    }
+      : Date.now() + hours * 3600000;
     let idx = 0;
     let best = Infinity;
     slots.forEach((t, i) => {
@@ -185,6 +179,7 @@ class RensonClimateCard extends HTMLElement {
         (m ? (h ? " " : "") + m + t(lang, "min_unit") : "");
     };
     // boven: klok-labels op hele uren; onder: duur-markeringen (1h, 2h, ...)
+    // op de geïnterpoleerde tijd-positie waar die duur valt
     const N = slots.length;
     const timeticks = [];
     const durticks = [];
@@ -193,11 +188,18 @@ class RensonClimateCard extends HTMLElement {
       if (st.getMinutes() === 0) {
         timeticks.push(`<span class="timetick" style="left:${left}%">${st.getHours()}${t(lang, "hour_unit")}</span>`);
       }
-      const durH = (st.getTime() - Date.now()) / 3600000;
-      if (Math.abs(durH - Math.round(durH)) < 2 / 60 && Math.round(durH) >= 1) {
-        durticks.push(`<span class="tick" style="left:${left}%">${Math.round(durH)}${t(lang, "hour_unit")}</span>`);
-      }
     });
+    for (let k = 1; k <= 24; k++) {
+      const tK = Date.now() + k * 3600000;
+      if (tK > slots[N - 1].getTime()) break;
+      // positie interpoleren tussen de omliggende slots
+      let i = 0;
+      while (i < N - 1 && slots[i + 1].getTime() < tK) i++;
+      const span = slots[i + 1].getTime() - slots[i].getTime();
+      const frac = span ? (tK - slots[i].getTime()) / span : 0;
+      const left = ((i + frac) / (N - 1)) * 100;
+      durticks.push(`<span class="tick" style="left:${left}%">${k}${t(lang, "hour_unit")}</span>`);
+    }
     const slot = slots[d.idx];
     const host = document.createElement("div");
     host.innerHTML = `
