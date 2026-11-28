@@ -11,7 +11,7 @@
  *   outputs:  [light.keuken_inbouwspots, ...]            (optional; defaults to
  *              all OpenMotics lights/switches in the same area as the inputs)
  */
-import { t, esc, shortName } from "./renson-smartliving-common.js?v=dev26";
+import { t, esc, shortName } from "./renson-smartliving-common.js";
 
 class RensonInputLinkCard extends HTMLElement {
   static getStubConfig() {
@@ -633,7 +633,7 @@ class RensonInputLinkCard extends HTMLElement {
         optsHost.innerHTML = renderGAs();
         wireGAs();
         // Preload the editor module so the first Edit click is instant.
-        import("/renson_smartliving/renson-smartliving-automation-editor.js?v=dev26").catch(() => {});
+        import("/renson_smartliving/renson-smartliving-automation-editor.js").catch(() => {});
         // Re-render when the group actions fetch completes while open.
         this._dialogRefresh = () => {
           optsHost.innerHTML = renderGAs();
@@ -794,7 +794,7 @@ class RensonInputLinkCard extends HTMLElement {
      the data we already fetched (no wait); when it closes, refresh. */
   async _openAutomationEditor(gaId) {
     try {
-      await import("/renson_smartliving/renson-smartliving-automation-editor.js?v=dev26");
+      await import("/renson_smartliving/renson-smartliving-automation-editor.js");
     } catch (err) { return; }
     const C = customElements.get("renson-smartliving-automation-editor");
     if (!C) return;
