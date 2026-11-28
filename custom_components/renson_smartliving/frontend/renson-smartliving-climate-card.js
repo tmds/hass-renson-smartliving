@@ -271,7 +271,7 @@ class RensonClimateCard extends HTMLElement {
           padding: 16px;
         }
         .dialog {
-          position: relative; width: 360px; max-width: 94vw;
+          position: relative; width: 640px; max-width: 94vw;
           background: var(--card-background-color, #fff);
           border-radius: 18px; padding: 18px;
           box-shadow: 0 12px 40px rgba(0,0,0,.35);
