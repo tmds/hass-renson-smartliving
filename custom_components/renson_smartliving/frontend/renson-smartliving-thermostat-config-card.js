@@ -342,26 +342,26 @@ class RensonThermostatConfigCard extends HTMLElement {
           font-size: .68em; color: var(--secondary-text-color); margin-top: 6px;
         }
         .days {
-          display: flex; gap: 3px; margin: 16px 0;
+          display: flex; gap: 4px; margin: 16px 0;
           background: var(--secondary-background-color);
-          border-radius: 12px; padding: 3px;
+          border-radius: 22px; padding: 4px;
         }
         .days button {
           flex: 1; border: none; background: transparent;
-          color: var(--secondary-text-color); padding: 7px 0;
-          border-radius: 10px; cursor: pointer; font-size: .85em;
-          font-weight: 500; transition: all .18s ease;
+          color: var(--secondary-text-color); padding: 8px 0;
+          border-radius: 18px; cursor: pointer; font-size: .85em;
+          font-weight: 600; transition: all .18s ease;
         }
         .days button.sel {
           background: var(--primary-color);
-          color: var(--primary-text-color);
-          box-shadow: 0 1px 4px rgba(0,0,0,.2);
+          color: var(--text-on-primary, #fff);
+          box-shadow: 0 2px 8px rgba(0,0,0,.25);
         }
         .sp-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
         .sp-row {
           display: flex; gap: 8px; align-items: center;
           background: var(--secondary-background-color);
-          border-radius: 12px; padding: 8px 12px;
+          border-radius: 16px; padding: 10px 14px;
         }
         .sp-row input[type=time] {
           border: none; background: transparent;
@@ -401,7 +401,7 @@ class RensonThermostatConfigCard extends HTMLElement {
         }
         .del:hover { color: var(--error-color); background: var(--primary-background-color); }
         .btn {
-          border: none; border-radius: 12px; padding: 12px 16px;
+          border: none; border-radius: 22px; padding: 12px 18px;
           cursor: pointer; font-size: .95em; font-weight: 600;
           width: 100%; transition: filter .15s ease, transform .05s ease;
           font-family: inherit;
@@ -409,19 +409,20 @@ class RensonThermostatConfigCard extends HTMLElement {
         .btn:active { transform: scale(.99); }
         .btn:hover { filter: brightness(1.08); }
         .primary {
-          background: var(--primary-color); color: var(--primary-text-color);
+          background: var(--primary-color); color: var(--text-on-primary, #fff);
           margin-top: 12px;
+          box-shadow: 0 2px 10px rgba(0,0,0,.25);
         }
         .ghost {
-          background: var(--secondary-background-color);
+          background: transparent;
           color: var(--primary-text-color);
-          border: 1px dashed var(--divider-color);
+          border: 1px solid var(--divider-color);
           margin-top: 8px;
         }
         .cfg { display: flex; gap: 10px; margin-top: 16px; }
         .field {
           flex: 1; background: var(--secondary-background-color);
-          border-radius: 12px; padding: 10px 14px;
+          border-radius: 16px; padding: 10px 14px;
           display: flex; flex-direction: column; gap: 2px;
         }
         .field label {
@@ -448,8 +449,8 @@ class RensonThermostatConfigCard extends HTMLElement {
         .copy-dialog {
           position: relative; width: 340px; max-width: 90vw;
           background: var(--card-background-color, #fff);
-          border-radius: 16px; padding: 18px;
-          box-shadow: 0 12px 40px rgba(0,0,0,.3);
+          border-radius: 24px; padding: 18px;
+          box-shadow: 0 16px 48px rgba(0,0,0,.4);
           color: var(--primary-text-color);
         }
         .copy-title { font-weight: 700; margin-bottom: 12px; }

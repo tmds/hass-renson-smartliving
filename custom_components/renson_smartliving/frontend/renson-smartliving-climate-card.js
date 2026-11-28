@@ -340,8 +340,8 @@ class RensonClimateCard extends HTMLElement {
         .dialog {
           position: relative; width: 640px; max-width: 94vw;
           background: var(--card-background-color, #fff);
-          border-radius: 18px; padding: 18px;
-          box-shadow: 0 12px 40px rgba(0,0,0,.35);
+          border-radius: 24px; padding: 20px;
+          box-shadow: 0 16px 48px rgba(0,0,0,.4);
           color: var(--primary-text-color);
         }
         .dialog h3 { margin: 0 0 6px; font-size: 1.05em; }
@@ -386,23 +386,28 @@ class RensonClimateCard extends HTMLElement {
           margin-bottom: 10px; font-size: .9em;
         }
         .dialog input[type="time"] {
-          border: 1px solid var(--divider-color); border-radius: 8px;
-          padding: 6px 8px; background: var(--secondary-background-color);
+          border: 1px solid var(--divider-color); border-radius: 14px;
+          padding: 8px 10px; background: var(--secondary-background-color);
           color: var(--primary-text-color); font-family: inherit;
         }
         .dialog .apply {
           margin-top: 6px; width: 100%;
-          border: none; border-radius: 12px; padding: 10px 14px;
+          border: none; border-radius: 22px; padding: 11px 16px;
           background: var(--primary-color); color: var(--text-on-primary, #fff);
           cursor: pointer; font-size: .9em; font-weight: 600; font-family: inherit;
+          box-shadow: 0 2px 10px rgba(0,0,0,.25);
+          transition: filter .2s ease;
         }
+        .dialog .apply:hover { filter: brightness(1.08); }
         .dialog .close {
-          position: absolute; top: 10px; right: 12px;
-          border: none; background: var(--secondary-background-color);
+          position: absolute; top: 12px; right: 14px;
+          border: none; background: rgba(var(--rgb-primary-text-color, 255,255,255), .08);
           color: var(--primary-text-color);
-          width: 30px; height: 30px; border-radius: 50%;
+          width: 34px; height: 34px; border-radius: 50%;
           cursor: pointer; font-size: 1.05em;
+          transition: background .2s ease;
         }
+        .dialog .close:hover { background: rgba(var(--rgb-primary-text-color, 255,255,255), .14); }
       </style>
       <div class="tilehost"></div>
       <div class="presets">

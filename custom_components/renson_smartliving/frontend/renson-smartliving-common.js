@@ -419,34 +419,45 @@ export function dialogCSS() {
       position: relative; width: 420px; max-width: 94vw;
       max-height: 88vh; display: flex; flex-direction: column;
       background: var(--card-background-color);
-      border-radius: var(--ha-card-border-radius, 16px);
-      box-shadow: 0 12px 40px rgba(0,0,0,.35);
+      border-radius: 24px;
+      box-shadow: 0 16px 48px rgba(0,0,0,.4);
       color: var(--primary-text-color);
       font-family: inherit;
     }
     .dlg-head {
       display: flex; align-items: center; gap: 8px;
-      padding: 14px 16px 10px;
+      padding: 18px 20px 10px;
     }
     .dlg-head h3 {
-      margin: 0; flex: 1; font-size: 1em; font-weight: 600;
+      margin: 0; flex: 1; font-size: 1.05em; font-weight: 700;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .dlg-close {
-      border: none; background: var(--secondary-background-color);
+      border: none; background: rgba(var(--rgb-primary-text-color, 255,255,255), .08);
       color: var(--primary-text-color);
-      width: 32px; height: 32px; border-radius: 50%;
+      width: 34px; height: 34px; border-radius: 50%;
       cursor: pointer; font-size: 1.05em; flex-shrink: 0;
+      transition: background .2s ease;
     }
-    .dlg-body { padding: 0 16px; overflow-y: auto; }
+    .dlg-close:hover { background: rgba(var(--rgb-primary-text-color, 255,255,255), .14); }
+    .dlg-body { padding: 0 20px; overflow-y: auto; }
     .dlg-foot {
-      padding: 12px 16px 14px; display: flex;
-      justify-content: flex-end; gap: 8px;
+      padding: 14px 20px 18px; display: flex;
+      justify-content: flex-end; gap: 10px;
     }
     .dlg-primary {
-      border: none; border-radius: 12px; padding: 10px 22px;
+      border: none; border-radius: 22px; padding: 11px 26px;
       background: var(--primary-color);
       color: var(--text-primary-color, #fff);
+      font: inherit; font-weight: 600; cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,.25);
+      transition: filter .2s ease;
+    }
+    .dlg-primary:hover { filter: brightness(1.08); }
+    .dlg-secondary {
+      border: 1px solid var(--divider-color); border-radius: 22px;
+      padding: 11px 20px; background: transparent;
+      color: var(--primary-text-color);
       font: inherit; font-weight: 600; cursor: pointer;
     }
     .dlg-field {
@@ -461,7 +472,7 @@ export function dialogCSS() {
     .dlg input.dlg-input {
       width: 100%; box-sizing: border-box;
       border: 1px solid var(--divider-color);
-      border-radius: 10px; padding: 10px 12px;
+      border-radius: 14px; padding: 10px 14px;
       font-size: 1em; background: var(--secondary-background-color);
       color: var(--primary-text-color);
     }
