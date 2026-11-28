@@ -520,18 +520,18 @@ function _sec(t) {
 }
 
 function _scheduleColor(temp) {
-  const stops = [
-    [255, 224, 130],
-    [255, 183, 77],
-    [255, 112, 67],
-  ];
-  const min = 8, max = 24;
-  const t = Math.max(0, Math.min(1, (temp - min) / (max - min)));
-  const seg = t < 0.5 ? 0 : 1;
-  const f = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
-  const a = stops[seg], b = stops[seg + 1];
-  const c = a.map((v, i) => Math.round(v + (b[i] - v) * f));
-  return `rgb(${c[0]},${c[1]},${c[2]})`;
+  // Discrete temperature classes with clearly separated hues: adjacent
+  // setpoints must stay distinguishable at a glance (the old continuous
+  // yellow->orange ramp made e.g. 16 vs 14 degrees look identical).
+  const cls = temp < 15 ? 0
+    : temp < 17 ? 1
+    : temp < 19 ? 2
+    : temp < 21 ? 3
+    : temp < 23 ? 4
+    : 5;
+  const hues = [212, 174, 122, 48, 24, 0];
+  const lights = [58, 40, 42, 55, 55, 52];
+  return `hsl(${hues[cls]}, 72%, ${lights[cls]}%)`;
 }
 
 export function scheduleStripCSS() {
@@ -540,9 +540,11 @@ export function scheduleStripCSS() {
     .schedbar { position: relative; }
     .sched { position: relative; height: 10px; border-radius: 5px;
              overflow: hidden; background: var(--secondary-background-color); }
-    .sched div { position: absolute; top: 0; bottom: 0; }
+    .sched div { position: absolute; top: 0; bottom: 0;
+                 box-shadow: inset -1px 0 0 rgba(0,0,0,.3); }
     .sched .nowmark { top: -2px; bottom: -2px; width: 2px;
-                      background: var(--primary-text-color); opacity: .8; }
+                      background: var(--primary-text-color); opacity: .8;
+                      box-shadow: none; }
     /* Hover layer on top of the bar. It sits outside the bar's
        overflow:hidden so the popup is not clipped; one block per segment. */
     .schedhover { position: absolute; inset: -3px 0; }
