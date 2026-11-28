@@ -194,6 +194,9 @@ class OpenMoticsClimate(OpenMoticsEntity, ClimateEntity):
             ),
             "away_temperature": config.get("away_heating"),
             "lead_time": config.get("early_heating"),
+            "preset_expiration_hours": self.coordinator.entry.options.get(
+                CONF_PRESET_EXPIRATION_HOURS, DEFAULT_PRESET_EXPIRATION_HOURS
+            ),
         }
 
     def _status(self) -> dict[str, Any] | None:
@@ -254,18 +257,58 @@ class OpenMoticsClimate(OpenMoticsEntity, ClimateEntity):
         expiration_hours = self.coordinator.entry.options.get(
             CONF_PRESET_EXPIRATION_HOURS, DEFAULT_PRESET_EXPIRATION_HOURS
         )
+        await self.async_apply_override(float(target), hours=expiration_hours)
+
+    async def async_apply_override(
+        self,
+        target: float,
+        hours: float | None = None,
+        until: time | None = None,
+        permanent: bool = False,
+    ) -> None:
+        """Apply a setpoint override with an explicit expiration.
+
+        permanent=True writes the setpoint without preset_expiration
+        (the gateway keeps the OVERRIDE preset indefinitely). until is
+        a wall-clock time in the gateway timezone; hours counts from
+        now. Without hours/until/permanent the configured default
+        expiration applies.
+        """
         payload: dict[str, Any] = {"setpoint": float(target)}
-        if expiration_hours:
-            try:
-                tz_name = await self.coordinator.client.get_timezone()
-                gw_tz = ZoneInfo(tz_name)
-            except Exception:
-                gw_tz = None
-            expires = datetime.now(gw_tz) + timedelta(hours=float(expiration_hours))
-            payload["preset_expiration"] = expires.replace(tzinfo=None).isoformat()
+        expires: datetime | None = None
+        if not permanent:
+            if until is not None:
+                expires = await self._next_occurrence(until)
+            else:
+                if hours is None:
+                    hours = self.coordinator.entry.options.get(
+                        CONF_PRESET_EXPIRATION_HOURS,
+                        DEFAULT_PRESET_EXPIRATION_HOURS,
+                    )
+                if hours:
+                    expires = await self._now_gw() + timedelta(hours=float(hours))
+            if expires is not None:
+                payload["preset_expiration"] = expires.replace(tzinfo=None).isoformat()
         await self.coordinator.client.set_thermostat_control(
             self._thermostat_id, payload
         )
+
+    async def _now_gw(self) -> datetime:
+        try:
+            tz_name = await self.coordinator.client.get_timezone()
+            gw_tz = ZoneInfo(tz_name)
+        except Exception:
+            gw_tz = None
+        return datetime.now(gw_tz)
+
+    async def _next_occurrence(self, when: time) -> datetime:
+        """Resolve a wall-clock time to its next occurrence (gateway tz)."""
+        now = await self._now_gw()
+        candidate = now.replace(hour=when.hour, minute=when.minute,
+                                second=0, microsecond=0)
+        if candidate <= now:
+            candidate += timedelta(days=1)
+        return candidate
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         payload: dict[str, Any] = {

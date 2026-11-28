@@ -61,6 +61,16 @@ SERVICE_SET_CONFIG_SCHEMA = vol.Schema(
     }
 )
 
+SERVICE_SET_OVERRIDE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Required("temperature"): vol.Coerce(float),
+        vol.Exclusive("hours", "expiration"): vol.Coerce(float),
+        vol.Exclusive("until", "expiration"): cv.time,
+        vol.Exclusive("permanent", "expiration"): cv.boolean,
+    }
+)
+
 SERVICE_SET_INPUT_LINK_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
@@ -440,6 +450,36 @@ _MANIFEST_VERSION = json.loads(
 ).get("version", "0")
 
 
+async def _async_set_override(call: ServiceCall) -> None:
+    """Apply a setpoint override with an explicit expiration.
+
+    Expiration is either hours from now, a wall-clock "until" time or
+    permanent; without any of them the configured default applies.
+    """
+    temperature = call.data["temperature"]
+    for entity_id in call.data[ATTR_ENTITY_ID]:
+        registry: dict[str, Any] = call.hass.data.setdefault(DOMAIN, {}).setdefault(
+            "climate_entities", {}
+        )
+        entity = registry.get(entity_id)
+        if entity is None:
+            raise ValueError(f"Unknown renson_smartliving climate entity: {entity_id}")
+        await entity.async_apply_override(
+            temperature,
+            hours=call.data.get("hours"),
+            until=call.data.get("until"),
+            permanent=call.data.get("permanent", False),
+        )
+        _LOGGER.info(
+            "Override applied for %s: %.1f deg (hours=%s until=%s permanent=%s)",
+            entity_id,
+            temperature,
+            call.data.get("hours"),
+            call.data.get("until"),
+            call.data.get("permanent", False),
+        )
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the OpenMotics services and frontend resources."""
     if hass.http:
@@ -497,6 +537,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         "run_group_action",
         _async_run_group_action,
         schema=SERVICE_RUN_GROUP_ACTION_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "set_thermostat_override",
+        _async_set_override,
+        schema=SERVICE_SET_OVERRIDE_SCHEMA,
     )
     return True
 
