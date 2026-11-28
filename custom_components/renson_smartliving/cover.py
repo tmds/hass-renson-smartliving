@@ -20,8 +20,7 @@ if TYPE_CHECKING:
 from .coordinator import EntityNaming, OpenMoticsCoordinator, signal_config_loaded
 from .entity import OpenMoticsEntity, remove_stale_entities
 
-_GOTO_POLL = 0.5  # seconden tussen positie-polls tijdens een goto
-_GOTO_MARGIN = 5.0  # seconden vangnet bovenop de rijtimer
+_GOTO_FALLBACK_TRAVEL = 30.0  # seconden wanneer geen rijtimer geconfigureerd is
 
 
 async def async_setup_entry(
@@ -90,9 +89,27 @@ class OpenMoticsCover(OpenMoticsEntity, CoverEntity):
         self._ws_change_type = "SHUTTER_CHANGE"
         self._om_id = shutter_id
         self._goto_task: asyncio.Task[None] | None = None
+        # actieve beweging, om tussentijds een geschatte positie te tonen:
+        # {"start_om", "target_om", "duration", "started"}
+        self._goto_motion: dict[str, float] | None = None
 
     @property
     def current_cover_position(self) -> int | None:
+        motion = self._goto_motion
+        if motion is not None:
+            # de gateway pusht geen posities tijdens het rijden; toon de
+            # geschatte positie op basis van verstreken rijtijd
+            duration = motion["duration"]
+            frac = (
+                1.0
+                if duration <= 0
+                else min(
+                    1.0,
+                    (asyncio.get_running_loop().time() - motion["started"]) / duration,
+                )
+            )
+            om = motion["start_om"] + (motion["target_om"] - motion["start_om"]) * frac
+            return int(round((99 - om) * 100 / 99))
         state = self.coordinator.get_shutter_state(self._shutter_id)
         if state is None or state["position"] is None:
             return None
@@ -142,9 +159,10 @@ class OpenMoticsCover(OpenMoticsEntity, CoverEntity):
         """Move the shutter to an absolute position (time-based emulation).
 
         The gateway (fw 3.9.9) has no do_shutter_goto support
-        ("Shutter timers are not supported"), but it does track the
-        position while the shutter travels. So: start up/down, poll the
-        pushed position and stop on target. HA: 100 = open, 0 = closed.
+        ("Shutter timers are not supported") and does not push position
+        updates while the shutter travels. So: start up/down and stop
+        after the estimated travel time (configured travel timer scaled
+        by the requested distance). HA: 100 = open, 0 = closed.
         OM: 0 = open, 99 = closed.
         """
         target = max(0, min(100, int(kwargs[ATTR_POSITION])))
@@ -169,41 +187,38 @@ class OpenMoticsCover(OpenMoticsEntity, CoverEntity):
         return None
 
     async def _goto_position(self, target: int) -> None:
-        """Drive the shutter to target and stop; runs as background task."""
+        """Drive the shutter to target and stop; runs as background task.
+
+        Purely time-based: the gateway does not report intermediate
+        positions while the motor moves, so the stop moment is computed
+        from the configured travel timer scaled by the travel distance.
+        """
         om_target = round(99 - target * 99 / 100)
         state = self.coordinator.get_shutter_state(self._shutter_id)
         om_current = state["position"] if state else 0
+        if om_target == om_current:
+            return
         going_up = om_target < om_current  # OM: 0 = fully open
         config = self._shutter_config() or {}
         travel = config.get("timer_up" if going_up else "timer_down")
         if not travel or travel == 255:
-            travel = 30  # fallback vangnet wanneer timer niet geconfigureerd is
+            travel = _GOTO_FALLBACK_TRAVEL
+        # schaal de volledige rijtijd op de af te leggen afstand
+        duration = float(travel) * abs(om_target - om_current) / 99
         client = self.coordinator.client
-        if going_up:
-            await client.shutter_up(self._shutter_id)
-        else:
-            await client.shutter_down(self._shutter_id)
-        deadline = asyncio.get_running_loop().time() + float(travel) + _GOTO_MARGIN
+        self._goto_motion = {
+            "start_om": om_current,
+            "target_om": om_target,
+            "duration": duration,
+            "started": asyncio.get_running_loop().time(),
+        }
         try:
-            while True:
-                await asyncio.sleep(_GOTO_POLL)
-                st = self.coordinator.get_shutter_state(self._shutter_id)
-                if st is None:
-                    continue
-                om_state = str(st.get("state", "")).lower()
-                pos = st.get("position")
-                # doel bereikt (of gepasseerd): stoppen
-                if pos is not None and (
-                    (going_up and pos <= om_target)
-                    or (not going_up and pos >= om_target)
-                ):
-                    break
-                # rit vanzelf beëindigd (timer afgelopen of fysieke grens)
-                if om_state in ("stopped", "up", "down"):
-                    break
-                # vangnet: nooit langer rijden dan de rijtimer + marge
-                if asyncio.get_running_loop().time() > deadline:
-                    break
+            if going_up:
+                await client.shutter_up(self._shutter_id)
+            else:
+                await client.shutter_down(self._shutter_id)
+            await asyncio.sleep(duration)
         finally:
+            self._goto_motion = None
             with suppress(Exception):
                 await client.shutter_stop(self._shutter_id)

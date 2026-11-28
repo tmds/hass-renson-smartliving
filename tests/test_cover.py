@@ -54,8 +54,9 @@ async def test_set_cover_position_unknown_raises(
 
 async def test_set_cover_position_drives_and_stops(
     coordinator: OpenMoticsCoordinator,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Closing from open: shutter_down, poll until target reached, then stop."""
+    """Closing from open: shutter_down, stop after the scaled travel time."""
     cover = OpenMoticsCover(
         coordinator=coordinator,
         naming=make_naming("cover", unique_id="test_cover", name="Blinds"),
@@ -67,26 +68,96 @@ async def test_set_cover_position_drives_and_stops(
     coordinator._shutter_states[0] = {"state": "UP", "position": 0}
     await cover.async_set_cover_position(position=0)
 
-    # the poll loop runs in a background task; simulate the gateway
-    # pushing positions and let the loop reach the target
-    async def drive() -> None:
-        for om_pos in (20, 60, 99):
-            await asyncio.sleep(0.05)
-            coordinator._shutter_states[0] = {
-                "state": "GOING_DOWN",
-                "position": om_pos,
-            }
+    # the goto runs in a background task; capture the computed sleep
+    slept: list[float] = []
 
-    await asyncio.gather(drive(), cover._goto_task)
+    async def fake_sleep(duration: float) -> None:
+        slept.append(duration)
+
+    monkeypatch.setattr(
+        "custom_components.renson_smartliving.cover.asyncio.sleep", fake_sleep
+    )
+    await cover._goto_task
     assert coordinator.client.shutter_down.await_count >= 1
+    # 23 s full travel scaled to the full 99-step distance -> 23 s
+    assert slept == [pytest.approx(23.0)]
     assert coordinator.client.shutter_stop.await_count == 1
     coordinator.client.shutter_up.assert_not_called()
 
 
+async def test_set_cover_position_scales_travel_time(
+    coordinator: OpenMoticsCoordinator,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A partial move stops proportionally earlier than the full travel."""
+    cover = OpenMoticsCover(
+        coordinator=coordinator,
+        naming=make_naming("cover", unique_id="test_cover", name="Blinds"),
+        shutter_id=0,
+    )
+    coordinator.shutters = [{"id": 0, "name": "screen", "timer_down": 20}]
+
+    # OM 0 (open) -> OM 33: 33/99 of the travel time
+    coordinator._shutter_states[0] = {"state": "UP", "position": 0}
+    await cover.async_set_cover_position(position=67)
+
+    slept: list[float] = []
+
+    async def fake_sleep(duration: float) -> None:
+        slept.append(duration)
+
+    monkeypatch.setattr(
+        "custom_components.renson_smartliving.cover.asyncio.sleep", fake_sleep
+    )
+    await cover._goto_task
+    assert slept == [pytest.approx(20.0 * 33 / 99)]
+
+
+async def test_set_cover_position_reports_estimated_position(
+    coordinator: OpenMoticsCoordinator,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """While travelling, the position is estimated from elapsed time."""
+    cover = OpenMoticsCover(
+        coordinator=coordinator,
+        naming=make_naming("cover", unique_id="test_cover", name="Blinds"),
+        shutter_id=0,
+    )
+    coordinator.shutters = [{"id": 0, "name": "screen", "timer_down": 2}]
+
+    coordinator._shutter_states[0] = {"state": "UP", "position": 0}
+
+    release = asyncio.Event()
+    real_sleep = asyncio.sleep
+
+    async def fake_sleep(_duration: float) -> None:
+        await release.wait()
+
+    monkeypatch.setattr(
+        "custom_components.renson_smartliving.cover.asyncio.sleep", fake_sleep
+    )
+    try:
+        await cover.async_set_cover_position(position=0)
+        # let the goto task start and reach its (blocked) sleep
+        await real_sleep(0.01)
+        # just after the start the estimate is still near fully open
+        assert cover.current_cover_position >= 90
+        # halfway through the 2 s motion: HA ~50 (OM ~49.5)
+        await real_sleep(1.0)
+        assert 40 <= cover.current_cover_position <= 60
+    finally:
+        release.set()
+    await cover._goto_task
+    # after the motion the reported gateway position wins again
+    # (gateway still reports OM 0 = fully open = HA 100)
+    assert cover.current_cover_position == 100
+
+
 async def test_set_cover_position_opens_upwards(
     coordinator: OpenMoticsCoordinator,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Opening from closed: shutter_up until the OM target is reached."""
+    """Opening from closed: shutter_up and stop after the travel time."""
     cover = OpenMoticsCover(
         coordinator=coordinator,
         naming=make_naming("cover", unique_id="test_cover", name="Blinds"),
@@ -98,19 +169,24 @@ async def test_set_cover_position_opens_upwards(
     coordinator._shutter_states[0] = {"state": "DOWN", "position": 99}
     await cover.async_set_cover_position(position=100)
 
-    async def drive() -> None:
-        for om_pos in (70, 30, 0):
-            await asyncio.sleep(0.05)
-            coordinator._shutter_states[0] = {"state": "GOING_UP", "position": om_pos}
+    slept: list[float] = []
 
-    await asyncio.gather(drive(), cover._goto_task)
+    async def fake_sleep(duration: float) -> None:
+        slept.append(duration)
+
+    monkeypatch.setattr(
+        "custom_components.renson_smartliving.cover.asyncio.sleep", fake_sleep
+    )
+    await cover._goto_task
     assert coordinator.client.shutter_up.await_count == 1
+    assert slept == [pytest.approx(24.0)]
     assert coordinator.client.shutter_stop.await_count == 1
     coordinator.client.shutter_down.assert_not_called()
 
 
 async def test_stop_cover_cancels_goto(
     coordinator: OpenMoticsCoordinator,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """async_stop_cover cancels a running goto and still sends stop."""
     cover = OpenMoticsCover(
@@ -123,6 +199,14 @@ async def test_stop_cover_cancels_goto(
     await cover.async_set_cover_position(position=0)
     assert cover._goto_task is not None
 
+    real_sleep = asyncio.sleep
+
+    async def fake_sleep(_duration: float) -> None:
+        await real_sleep(5)
+
+    monkeypatch.setattr(
+        "custom_components.renson_smartliving.cover.asyncio.sleep", fake_sleep
+    )
     await cover.async_stop_cover()
     assert cover._goto_task is None
     assert coordinator.client.shutter_stop.await_count >= 1
