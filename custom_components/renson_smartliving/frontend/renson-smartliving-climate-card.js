@@ -174,11 +174,16 @@ class RensonClimateCard extends HTMLElement {
       const left = ((h * 30 - 30) / (1440 - 30)) * 100;
       ticks.push(`<span class="tick" style="left:${left}%">${h / 2}${t(lang, "hour_unit")}</span>`);
     }
-    // werkelijke klok-tijd per uur, boven de lijn
+    // werkelijke klok-tijd per HALF uur, boven de lijn (schone :00/:30)
+    const base = new Date();
+    base.setSeconds(0, 0);
+    base.setMinutes(base.getMinutes() < 30 ? 30 : 60);
     const timeticks = [];
-    for (let h = 1; h <= 24; h++) {
-      const left = ((h * 60 - 30) / (1440 - 30)) * 100;
-      const t2 = new Date(Date.now() + h * 3600000);
+    for (let k = 0; k < 48; k++) {
+      const t2 = new Date(base.getTime() + k * 1800000);
+      const pos = Math.round((t2 - Date.now()) / 60000);
+      if (pos < 30 || pos > 1440) continue;
+      const left = ((pos - 30) / (1440 - 30)) * 100;
       timeticks.push(`<span class="timetick" style="left:${left}%">${this._fmtClock(t2)}</span>`);
     }
     const host = document.createElement("div");
