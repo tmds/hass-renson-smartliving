@@ -17,10 +17,31 @@ The OpenMotics "entities" are mapped as follows to Home Assistant entities:
 | Sensor (temperature, humidity, co2, power) | Sensor |
 | Input | Event (press/release) |
 | Group Action | Scene |
+| Thermostat | Climate |
 
 The entity ids are formatted: `{hass_platform}.{room}_{name}`, for example, `light.living_eettafel`. When the room name and entity name match, the room name is omitted. Sensor names are prefixed with the type of sensor, for example: `sensor.temp_bureau`. Group action scenes are prefixed with `ga_`, for example: `scene.ga_all_off`.
 
 When the names/rooms change in the smart living system, the entities provided by the integration will change to match. Stale entities are automatically removed.
+
+## Services
+
+### Thermostats
+
+- `renson_smartliving.set_thermostat_schedule`: replace the heating schedule of a thermostat for one, several or all days. Setpoints are `{time: "HH:MM", temperature: x}` entries; a full week can be copied between thermostats with the `week` field.
+
+  ```yaml
+  service: renson_smartliving.set_thermostat_schedule
+  target:
+    entity_id: climate.living
+  data:
+    setpoints:
+      - {time: "06:30", temperature: 20}
+      - {time: "22:00", temperature: 17}
+  ```
+
+- `renson_smartliving.set_thermostat_config`: set the away temperature and the lead time (early heating, minutes before a schedule setpoint).
+
+Setting a temperature on the climate entity writes the setpoint with a preset expiration (default 2 hours, configurable per config entry); returning the preset to `auto` resumes the schedule.
 
 ## Installation
 

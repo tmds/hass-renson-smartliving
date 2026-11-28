@@ -19,5 +19,16 @@
     "abort": {
       "already_configured": "This gateway is already configured"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Integration options",
+        "description": "Thermostat override behavior.",
+        "data": {
+          "preset_expiration_hours": "Manual temperature override duration (hours, 0 = permanent)"
+        }
+      }
+    }
   }
 }

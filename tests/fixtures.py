@@ -1,8 +1,29 @@
-"""Test data constants for Renson Smart Living tests."""
+"""Test data and helpers for Renson Smart Living tests."""
 
 from __future__ import annotations
 
+import json
+from unittest.mock import AsyncMock
+
 from custom_components.renson_smartliving.coordinator import EntityNaming
+
+
+def mock_response(
+    status: int = 200,
+    json_data: dict | list | None = None,
+    text: str | None = None,
+):
+    """Create a mock aiohttp response usable as an async context manager."""
+    resp = AsyncMock()
+    resp.status = status
+    if text is None:
+        text = "" if json_data is None else json.dumps(json_data)
+    resp.text = AsyncMock(return_value=text)
+    resp.json = AsyncMock(return_value=json_data if json_data is not None else {})
+    ctx = AsyncMock()
+    ctx.__aenter__ = AsyncMock(return_value=resp)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    return ctx
 
 
 def make_naming(
@@ -102,5 +123,54 @@ SAMPLE_SHUTTER_STATUS = {
     "detail": {
         "0": {"state": "UP", "actual_position": 0},
         "3": {"state": "DOWN", "actual_position": 99},
+    },
+}
+
+SAMPLE_THERMOSTATS = [
+    {
+        "id": 0,
+        "name": "Living",
+        "room": 2,
+        "status": {
+            "current_temperature": 19.0,
+            "mode": "heating",
+            "steering_power": 40,
+            "state": "ON",
+            "active_preset": "auto",
+            "preset_expiration": None,
+            "current_setpoint": 18.0,
+        },
+    },
+    {
+        "id": 1,
+        "name": "Office",
+        "room": 3,
+        "status": {
+            "current_temperature": 20.5,
+            "mode": "heating",
+            "steering_power": 0,
+            "state": "OFF",
+            "active_preset": "manual",
+            "preset_expiration": None,
+            "current_setpoint": 15.0,
+        },
+    },
+]
+
+# WebSocket event as sent by the gateway (uppercase enum values).
+SAMPLE_THERMOSTAT_EVENT = {
+    "type": "THERMOSTAT_CHANGE",
+    "data": {
+        "id": 0,
+        "status": {
+            "state": "ON",
+            "current_setpoint": 20.0,
+            "steering_power": 100,
+            "active_preset": "OVERRIDE",
+            "current_temperature": 19.0,
+            "mode": "HEATING",
+            "preset_expiration": None,
+            "previous_preset": "AUTO",
+        },
     },
 }

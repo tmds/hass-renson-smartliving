@@ -6,12 +6,15 @@ from homeassistant.components.light import ATTR_BRIGHTNESS, ColorMode, LightEnti
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util.color import brightness_to_value, value_to_brightness
 
 if TYPE_CHECKING:
     from . import OpenMoticsConfigEntry
 from .const import OUTPUT_TYPE_LIGHT
 from .coordinator import EntityNaming, OpenMoticsCoordinator, signal_config_loaded
 from .entity import OpenMoticsEntity, remove_stale_entities
+
+_SCALE = (1, 100)
 
 
 async def async_setup_entry(
@@ -93,13 +96,15 @@ class OpenMoticsLight(OpenMoticsEntity, LightEntity):
         state = self.coordinator.get_output_state(self._output_id)
         if state is None:
             return None
-        # OM: 0-100 dimmer percentage. HA: 0-255 brightness.
-        return round(state["dimmer"] * 255 / 100)
+        dimmer = state.get("dimmer", 0)
+        if dimmer <= 0:
+            return 0
+        return value_to_brightness(_SCALE, dimmer)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        dimmer = None
+        dimmer: int | None = None
         if ATTR_BRIGHTNESS in kwargs:
-            dimmer = round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
+            dimmer = round(brightness_to_value(_SCALE, kwargs[ATTR_BRIGHTNESS]))
         await self.coordinator.client.set_output(
             self._output_id, is_on=True, dimmer=dimmer
         )

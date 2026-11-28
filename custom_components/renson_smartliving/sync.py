@@ -29,9 +29,11 @@ EXPECTED_CONTROL_EVENTS = {
 }
 
 # V2 (CLASSIC) gateways don't emit VERSION over WebSocket;
-# fetched via REST fallback in _sync() when missing.
+# THERMOSTAT_CONTROL was added in a later firmware version.
+# Both are fetched via REST fallback in _sync() when missing.
 OPTIONAL_CONTROL_EVENTS = {
     "VERSION",
+    "THERMOSTAT_CONTROL",
 }
 
 CHANGE_EVENTS = {
@@ -39,6 +41,7 @@ CHANGE_EVENTS = {
     "INPUT_CHANGE",
     "SENSOR_CHANGE",
     "SHUTTER_CHANGE",
+    "THERMOSTAT_CHANGE",
 }
 
 
@@ -101,7 +104,15 @@ class SyncLoop:
                     self._set_available(False)
                 elapsed = time.monotonic() - started
                 remaining = max(0, self._backoff - elapsed)
-                if isinstance(exc, (ConnectionError, TimeoutError, OpenMoticsError, aiohttp.ClientError)):
+                if isinstance(
+                    exc,
+                    (
+                        ConnectionError,
+                        TimeoutError,
+                        OpenMoticsError,
+                        aiohttp.ClientError,
+                    ),
+                ):
                     reason = str(exc) or type(exc).__name__
                     _LOGGER.error(
                         "Sync failed for %s: %s",
@@ -141,10 +152,29 @@ class SyncLoop:
         _LOGGER.info("Connected to %s, syncing state", self._client.host)
 
         try:
-            await self._client.trigger_sync()
+            use_rest_config = False
+            try:
+                await self._client.trigger_sync()
+            except OpenMoticsError as exc:
+                if exc.status != 404:
+                    raise
+                # Firmware without the sync control API (e.g.
+                # OpenMotics CORE 3.9.9) never emits *_CONTROL
+                # events over the websocket. Collect the
+                # configuration via legacy REST endpoints instead.
+                use_rest_config = True
+                _LOGGER.info(
+                    "Gateway %s has no sync control API, "
+                    "using REST configuration fallback",
+                    self._client.host,
+                )
 
-            # Collect config, buffer change events
-            config, buffered = await self._collect_config(ws)
+            if use_rest_config:
+                config = await self._collect_config_rest()
+                buffered: list[dict[str, Any]] = []
+            else:
+                # Collect config, buffer change events
+                config, buffered = await self._collect_config(ws)
             _LOGGER.info(
                 "Retrieved configuration from %s: %s",
                 self._client.host,
@@ -160,6 +190,11 @@ class SyncLoop:
                     "gateway": v.get("gateway", ""),
                     "master": v.get("master", ""),
                 }
+
+            if "THERMOSTAT_CONTROL" not in config:
+                config["THERMOSTAT_CONTROL"] = (
+                    await self._client.get_thermostat_control()
+                )
 
             # WS INPUT_CONTROL only includes in_use inputs; fetch via
             # REST to also include inputs not in_use on the gateway,
@@ -200,6 +235,31 @@ class SyncLoop:
             await self._active_phase(ws)
         finally:
             await ws.close()
+
+    async def _collect_config_rest(self) -> dict[str, Any]:
+        """Collect the configuration via legacy REST endpoints.
+
+        Used on firmware that has no sync control API and therefore
+        never pushes *_CONTROL events over the websocket.
+        """
+        client = self._client
+        config: dict[str, Any] = {
+            "OUTPUT_CONTROL": await client.get_output_configurations(),
+            "SHUTTER_CONTROL": await client.get_shutter_configurations(),
+            "SENSOR_CONTROL": await client.get_sensor_configurations(),
+            "ROOM_CONTROL": await client.get_room_configurations(),
+            "GROUP_ACTION_CONTROL": (
+                await client.get_group_action_configurations()
+            ),
+            "PLATFORM_DETAILS": await client.get_platform_details(),
+            "THERMOSTAT_CONTROL": await client.get_thermostat_control(),
+        }
+        v = await client.get_version()
+        config["VERSION"] = {
+            "gateway": v.get("gateway", ""),
+            "master": v.get("master", ""),
+        }
+        return config
 
     async def _collect_config(
         self, ws: aiohttp.ClientWebSocketResponse
@@ -245,7 +305,7 @@ class SyncLoop:
             ) from None
 
     async def _active_phase(self, ws: aiohttp.ClientWebSocketResponse) -> None:
-        _LOGGER.info("Synchronizing state with %s", self._client.host)
+        _LOGGER.info("Connected and handling events from %s", self._client.host)
         async for msg in ws:
             if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
                 event = msg.json()

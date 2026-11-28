@@ -130,6 +130,29 @@ def create_entities(
                 room_id=room_id,
             )
         )
+
+    # Valve position (steering_power) per thermostat, push-updated via
+    # THERMOSTAT_CHANGE. The gateway drives 0-10V valves proportionally;
+    # this exposes the computed valve position in %.
+    for thermostat in coordinator.thermostats:
+        if not thermostat.get("name"):
+            continue
+        naming = coordinator.resolve_entity_naming(
+            thermostat["name"],
+            thermostat.get("room"),
+            "valve",
+            thermostat["id"],
+            "sensor",
+            entity_id_prefix="valve",
+        )
+        entities.append(
+            OpenMoticsValveSensor(
+                coordinator=coordinator,
+                naming=naming,
+                thermostat_id=thermostat["id"],
+                room_id=thermostat.get("room"),
+            )
+        )
     return entities
 
 
@@ -156,3 +179,32 @@ class OpenMoticsSensor(OpenMoticsEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         return self.coordinator.get_sensor_value(self._sensor_id)
+
+
+class OpenMoticsValveSensor(OpenMoticsEntity, SensorEntity):
+    """Valve position (steering_power %) of an OpenMotics thermostat."""
+
+    def __init__(
+        self,
+        coordinator: OpenMoticsCoordinator,
+        naming: EntityNaming,
+        thermostat_id: int,
+        room_id: int | None = None,
+    ) -> None:
+        super().__init__(coordinator, naming, room_id)
+        self._thermostat_id = thermostat_id
+        self._ws_change_type = "THERMOSTAT_CHANGE"
+        self._om_id = thermostat_id
+        self._attr_native_unit_of_measurement = PERCENTAGE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_icon = "mdi:valve"
+
+    @property
+    def native_value(self) -> float | None:
+        status = self.coordinator.get_thermostat_state(self._thermostat_id)
+        if status is None:
+            return None
+        value = status.get("steering_power")
+        if value is None:
+            return None
+        return float(value)

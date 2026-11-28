@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import aiohttp
 import pytest
 
 from custom_components.renson_smartliving.sync import SyncLoop
-from tests.fixtures import SAMPLE_OUTPUT_STATUS, SAMPLE_SHUTTER_STATUS, VERSION
 from tests.test_sync import FakeWS, _make_client, _make_config_messages, _make_ws_msg
 
 

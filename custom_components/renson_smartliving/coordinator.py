@@ -95,6 +95,21 @@ def _expand_truncated_name(name: str, room_name: str) -> str:
     return name
 
 
+def _normalize_thermostat_status(status: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a thermostat status dict.
+
+    The REST list uses lowercase enum values (auto, on, heating) while
+    WebSocket events use uppercase (AUTO/OVERRIDE, ON, HEATING).
+    Consumers always see lowercase.
+    """
+    normalized = dict(status)
+    for key in ("state", "active_preset", "mode"):
+        value = normalized.get(key)
+        if isinstance(value, str):
+            normalized[key] = value.lower()
+    return normalized
+
+
 class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Data container for OpenMotics state, updated by the sync loop.
 
@@ -126,9 +141,11 @@ class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.sensors: list[dict[str, Any]] = []
         self.inputs: list[dict[str, Any]] = []
         self.group_actions: list[dict[str, Any]] = []
+        self.thermostats: list[dict[str, Any]] = []
         self._config_loaded = False
         self._output_states: dict[int, dict[str, Any]] = {}
         self._shutter_states: dict[int, dict[str, Any]] = {}
+        self._thermostat_states: dict[int, dict[str, Any]] = {}
         self._sensor_values: dict[int, float] = {}
         self.connected: bool = False
 
@@ -237,6 +254,15 @@ class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "position": info.get("actual_position"),
             }
 
+        # Thermostats: the V1 control list holds config and status.
+        self.thermostats = data.get("THERMOSTAT_CONTROL", [])
+        for thermostat in self.thermostats:
+            status = thermostat.get("status")
+            if status is not None:
+                self._thermostat_states[thermostat["id"]] = (
+                    _normalize_thermostat_status(status)
+                )
+
     def apply_event(self, event: dict[str, Any]) -> None:
         """Apply a real-time change event to the state."""
         event_type = event.get("type", "")
@@ -271,6 +297,14 @@ class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ),
                 event_data.get("status", False),
             )
+        elif event_type == "THERMOSTAT_CHANGE":
+            thermostat_id = event_data["id"]
+            status = event_data.get("status")
+            if status is not None:
+                self._thermostat_states[thermostat_id] = (
+                    _normalize_thermostat_status(status)
+                )
+                self._signal_entity(event_type, thermostat_id)
 
     def _signal_entity(self, event_type: str, om_id: int) -> None:
         """Signal the entity affected by an event."""
@@ -284,6 +318,9 @@ class OpenMoticsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def get_shutter_state(self, shutter_id: int) -> dict[str, Any] | None:
         return self._shutter_states.get(shutter_id)
+
+    def get_thermostat_state(self, thermostat_id: int) -> dict[str, Any] | None:
+        return self._thermostat_states.get(thermostat_id)
 
     def get_sensor_value(self, sensor_id: int) -> float | None:
         return self._sensor_values.get(sensor_id)

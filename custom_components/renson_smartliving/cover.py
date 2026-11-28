@@ -88,7 +88,7 @@ class OpenMoticsCover(OpenMoticsEntity, CoverEntity):
         if state is None or state["position"] is None:
             return None
         # OM: 0=open, 99=closed (100 steps). HA: 100=open, 0=closed (101 values).
-        return round((99 - state["position"]) * 100 / 99)
+        return int(round((99 - state["position"]) * 100 / 99))
 
     @property
     def is_opening(self) -> bool:
@@ -115,3 +115,4 @@ class OpenMoticsCover(OpenMoticsEntity, CoverEntity):
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         await self.coordinator.client.shutter_stop(self._shutter_id)
+
