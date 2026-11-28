@@ -264,6 +264,14 @@ class RensonClimateCard extends HTMLElement {
           background: var(--primary-color); color: var(--text-on-primary, #fff);
         }
         .presets button:not(.active):hover { filter: brightness(1.05); }
+        .until-pill {
+          margin-top: 6px; padding: 6px 12px;
+          border-radius: 10px;
+          background: var(--primary-color);
+          color: var(--text-on-primary, #fff);
+          font-size: .8em; font-weight: 600;
+          text-align: center;
+        }
         .overlay {
           position: fixed; inset: 0; z-index: 1000;
           background: rgba(0,0,0,.5);
@@ -318,6 +326,7 @@ class RensonClimateCard extends HTMLElement {
       <div class="presets">
         ${PRESETS.map((p) => `<button data-preset="${p.ha}"></button>`).join("")}
       </div>
+      <div class="until-pill" style="display:none"></div>
     `;
     this.renderRoot.querySelectorAll(".presets button").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -349,6 +358,22 @@ class RensonClimateCard extends HTMLElement {
       const p = PRESETS.find((x) => x.ha === preset);
       btn.textContent = t(this._lang, p.key);
     });
+    // "manual until <tijd>"-pill bij een actieve override
+    const pill = this.renderRoot.querySelector(".until-pill");
+    if (!pill) return;
+    const entity = this._hass && this._hass.states[this._config.entity];
+    const exp = entity && entity.attributes
+      ? entity.attributes.override_expiration : null;
+    if (active === "none" && exp) {
+      const d = new Date(exp);
+      const when = isNaN(d.getTime())
+        ? String(exp)
+        : this._fmtClock(d);
+      pill.textContent = t(this._lang, "gw_manual_until", { time: when });
+      pill.style.display = "";
+    } else {
+      pill.style.display = "none";
+    }
   }
 }
 

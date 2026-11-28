@@ -197,6 +197,7 @@ class OpenMoticsClimate(OpenMoticsEntity, ClimateEntity):
             "preset_expiration_hours": self.coordinator.entry.options.get(
                 CONF_PRESET_EXPIRATION_HOURS, DEFAULT_PRESET_EXPIRATION_HOURS
             ),
+            "override_expiration": (self._status() or {}).get("preset_expiration"),
         }
 
     def _status(self) -> dict[str, Any] | None:
