@@ -384,3 +384,76 @@ def test_seconds_to_time_edges() -> None:
     assert seconds_to_time(0) == "00:00"
     assert seconds_to_time(86340) == "23:59"
     assert seconds_to_time(43200) == "12:00"
+
+
+async def test_apply_override_hours(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    """apply_override(hours=...) PUTs the setpoint with that expiration."""
+    _load_status(coordinator)
+    climate = _make_climate(coordinator)
+    coordinator.client = MagicMock()
+    coordinator.client.set_thermostat_control = AsyncMock()
+    coordinator.client.get_timezone = AsyncMock(return_value="Europe/Brussels")
+
+    before = datetime.now()
+    await climate.async_apply_override(21.0, hours=0.5)
+
+    thermostat_id, payload = coordinator.client.set_thermostat_control.call_args.args
+    assert thermostat_id == 0
+    assert payload["setpoint"] == 21.0
+    expires = datetime.fromisoformat(payload["preset_expiration"])
+    assert before + timedelta(minutes=29) < expires < before + timedelta(minutes=31)
+
+
+async def test_apply_override_until_today(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    """until later today expires at that wall-clock time."""
+    _load_status(coordinator)
+    climate = _make_climate(coordinator)
+    coordinator.client = MagicMock()
+    coordinator.client.set_thermostat_control = AsyncMock()
+    coordinator.client.get_timezone = AsyncMock(return_value="Europe/Brussels")
+
+    await climate.async_apply_override(21.0, until=time(23, 45))
+
+    payload = coordinator.client.set_thermostat_control.call_args.args[1]
+    expires = datetime.fromisoformat(payload["preset_expiration"])
+    assert (expires.hour, expires.minute) == (23, 45)
+    assert expires.date() in (datetime.now().date(),)
+
+
+async def test_apply_override_until_tomorrow(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    """until earlier today resolves to tomorrow (next occurrence)."""
+    _load_status(coordinator)
+    climate = _make_climate(coordinator)
+    coordinator.client = MagicMock()
+    coordinator.client.set_thermostat_control = AsyncMock()
+    coordinator.client.get_timezone = AsyncMock(return_value="Europe/Brussels")
+
+    await climate.async_apply_override(21.0, until=time(0, 5))
+
+    payload = coordinator.client.set_thermostat_control.call_args.args[1]
+    expires = datetime.fromisoformat(payload["preset_expiration"])
+    assert (expires.hour, expires.minute) == (0, 5)
+    assert expires.date() != datetime.now().date() or expires > datetime.now()
+
+
+async def test_apply_override_permanent(
+    coordinator: OpenMoticsCoordinator,
+) -> None:
+    """permanent=True sends no preset_expiration."""
+    _load_status(coordinator)
+    climate = _make_climate(coordinator)
+    coordinator.client = MagicMock()
+    coordinator.client.set_thermostat_control = AsyncMock()
+    coordinator.client.get_timezone = AsyncMock(return_value="Europe/Brussels")
+
+    await climate.async_apply_override(21.0, permanent=True)
+
+    payload = coordinator.client.set_thermostat_control.call_args.args[1]
+    assert payload == {"setpoint": 21.0}
+    coordinator.client.get_timezone.assert_not_called()
