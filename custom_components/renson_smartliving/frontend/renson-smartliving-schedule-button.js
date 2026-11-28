@@ -61,7 +61,7 @@ class RensonScheduleButton extends HTMLElement {
     this.renderRoot.querySelector("button").addEventListener("click", () => {
       const overlay = openDialog(this, { title: t(this._lang, "configure_schedule"), bodyHTML: "" });
       const body = overlay.querySelector(".dlg-body");
-      body.style.padding = "0 0 8px";
+      body.style.padding = "16px 16px 8px";
       this._editor = document.createElement("renson-smartliving-thermostat-config-card");
       this._editor.setConfig({ entity: this._config.entity, embedded: true });
       if (this._hass) this._editor.hass = this._hass;
