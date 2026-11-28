@@ -188,12 +188,12 @@ class RensonClimateCard extends HTMLElement {
     const N = slots.length;
     const timeticks = [];
     const durticks = [];
-    slots.forEach((t, i) => {
+    slots.forEach((st, i) => {
       const left = (i / (N - 1)) * 100;
-      if (t.getMinutes() === 0) {
-        timeticks.push(`<span class="timetick" style="left:${left}%">${t.getHours()}${t(lang, "hour_unit")}</span>`);
+      if (st.getMinutes() === 0) {
+        timeticks.push(`<span class="timetick" style="left:${left}%">${st.getHours()}${t(lang, "hour_unit")}</span>`);
       }
-      const durH = (t.getTime() - Date.now()) / 3600000;
+      const durH = (st.getTime() - Date.now()) / 3600000;
       if (Math.abs(durH - Math.round(durH)) < 2 / 60 && Math.round(durH) >= 1) {
         durticks.push(`<span class="tick" style="left:${left}%">${Math.round(durH)}${t(lang, "hour_unit")}</span>`);
       }
