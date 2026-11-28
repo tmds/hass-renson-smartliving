@@ -444,7 +444,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the OpenMotics services and frontend resources."""
     if hass.http:
         await hass.http.async_register_static_paths(
-            [StaticPathConfig(FRONTEND_URL_BASE, str(FRONTEND_DIR), True)]
+            [StaticPathConfig(FRONTEND_URL_BASE, str(FRONTEND_DIR), False)]
         )
         try:
             from homeassistant.components.frontend import add_extra_js_url
