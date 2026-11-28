@@ -100,13 +100,15 @@ class RensonClimateCard extends HTMLElement {
     return 5;
   }
 
-  _askOverride(temperature) {
+  _askOverride(temperature, prefill) {
     const hours = this._defaultHours();
     this._dialog = {
       temperature,
-      mode: "hours",
+      mode: prefill && prefill.until ? "until" : "hours",
       hours,
-      until: this._fmtClock(new Date(Date.now() + hours * 3600000)),
+      until: prefill && prefill.until
+        ? prefill.until
+        : this._fmtClock(new Date(Date.now() + hours * 3600000)),
       permanent: false,
     };
     this._renderDialog();
@@ -391,6 +393,21 @@ class RensonClimateCard extends HTMLElement {
         : this._fmtClock(d);
       pill.textContent = t(this._lang, "gw_manual_until", { time: when });
       pill.style.display = "";
+      if (!pill._wired) {
+        pill._wired = true;
+        pill.style.cursor = "pointer";
+        pill.title = t(this._lang, "override_title");
+        pill.addEventListener("click", () => {
+          const e = this._hass && this._hass.states[this._config.entity];
+          if (!e || !e.attributes) return;
+          const temp = Number(e.attributes.temperature);
+          const exp2 = e.attributes.override_expiration;
+          const d2 = exp2 ? new Date(exp2) : null;
+          const prefill = d2 && !isNaN(d2.getTime())
+            ? { until: this._fmtClock(d2) } : {};
+          if (Number.isFinite(temp)) this._askOverride(temp, prefill);
+        });
+      }
     } else {
       pill.style.display = "none";
     }
