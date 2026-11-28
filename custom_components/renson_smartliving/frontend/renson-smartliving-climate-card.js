@@ -114,13 +114,15 @@ class RensonClimateCard extends HTMLElement {
     }
     const until = (prefill && prefill.until) || current
       || this._fmtClock(new Date(Date.now() + hours * 3600000));
-    // slider in minuten; bij een actieve override de resterende minuten
+    // slider in minuten (30-min grid); bij een actieve override de
+    // resterende minuten, afgerond op een half uur
     let minutes = Math.round((this._todayAt(until) - Date.now()) / 60000);
     if (!(minutes > 0)) minutes = Math.round(hours * 60);
+    minutes = Math.max(30, Math.min(1440, Math.round(minutes / 30) * 30));
     this._dialog = {
       temperature,
       mode: (prefill && prefill.until) || current ? "until" : "hours",
-      minutes: Math.max(15, Math.min(1440, minutes)),
+      minutes,
       until,
       permanent: false,
     };
@@ -168,9 +170,9 @@ class RensonClimateCard extends HTMLElement {
     const defEnd = this._fmtClock(new Date(Date.now() + d.minutes * 60000));
     // alle uren van de komende 24h als labels (geen klikken)
     const ticks = [];
-    for (let h = 1; h <= 24; h++) {
-      const left = ((h * 60 - 15) / (1440 - 15)) * 100;
-      ticks.push(`<span class="tick" style="left:${left}%">${h}${t(lang, "hour_unit")}</span>`);
+    for (let h = 2; h <= 48; h += 2) {
+      const left = ((h * 30 - 15) / (1440 - 15)) * 100;
+      ticks.push(`<span class="tick" style="left:${left}%">${h / 2}${t(lang, "hour_unit")}</span>`);
     }
     const host = document.createElement("div");
     host.innerHTML = `
@@ -184,7 +186,7 @@ class RensonClimateCard extends HTMLElement {
           })}</div>
           <div class="durlabel"></div>
           <div class="sliderwrap">
-            <input type="range" class="dur" min="15" max="1440" step="1" value="${d.minutes}">
+            <input type="range" class="dur" min="30" max="1440" step="30" value="${d.minutes}">
             <div class="ticks">${ticks.join("")}</div>
           </div>
           <div class="row">
@@ -234,10 +236,10 @@ class RensonClimateCard extends HTMLElement {
       d.until = e.target.value || d.until;
       d.permanent = false;
       overlay.querySelector(".perm").checked = false;
-      // slider volgt de gekozen eindtijd (resterende minuten)
+      // slider volgt de gekozen eindtijd (resterende minuten, op 30 min)
       const mins = Math.round((this._todayAt(d.until) - Date.now()) / 60000);
-      if (mins >= 15) {
-        d.minutes = Math.min(1440, mins);
+      if (mins >= 30) {
+        d.minutes = Math.min(1440, Math.round(mins / 30) * 30);
         overlay.querySelector(".dur").value = d.minutes;
         d.mode = "hours";
       }
