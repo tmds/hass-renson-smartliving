@@ -11,7 +11,9 @@
  *   type: custom:renson-smartliving-thermostat-config-card
  *   entity: climate.praktijk
  */
-import { t, esc, shortName, dayLabels, dayLabel } from "./renson-smartliving-common.js?v=0.2.4";
+import {
+  t, esc, shortName, dayLabels, dayLabel, scheduleColor,
+} from "./renson-smartliving-common.js?v=0.2.4";
 
 class RensonThermostatConfigCard extends HTMLElement {
   static getStubConfig() {
@@ -129,19 +131,7 @@ class RensonThermostatConfigCard extends HTMLElement {
   }
 
   _color(temp) {
-    // App-style palette: soft yellow -> amber -> deep orange.
-    const stops = [
-      [255, 224, 130],
-      [255, 183, 77],
-      [255, 112, 67],
-    ];
-    const min = 8, max = 24;
-    const t = Math.max(0, Math.min(1, (temp - min) / (max - min)));
-    const seg = t < 0.5 ? 0 : 1;
-    const f = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
-    const a = stops[seg], b = stops[seg + 1];
-    const c = a.map((v, i) => Math.round(v + (b[i] - v) * f));
-    return `rgb(${c[0]},${c[1]},${c[2]})`;
+    return scheduleColor(temp);
   }
 
   _nowPct() {

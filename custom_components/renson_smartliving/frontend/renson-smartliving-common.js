@@ -632,6 +632,10 @@ export function scheduleStripHTML(entity, opts = {}) {
   return `<div class="schedwrap"><div class="schedbar"><div class="sched">${bar.join("")}</div><div class="schedhover">${hover.join("")}</div></div>${labels}</div>`;
 }
 
+export function scheduleColor(temp) {
+  return _scheduleColor(temp);
+}
+
 export function fmtTemp(t) {
   return t === undefined || t === null ? "?" : Number(t).toFixed(1).replace(/\.0$/, "");
 }
