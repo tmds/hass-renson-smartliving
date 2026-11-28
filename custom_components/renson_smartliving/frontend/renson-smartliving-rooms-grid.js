@@ -436,6 +436,34 @@ class RensonRoomsGrid extends HTMLElement {
           url_path: urlPath,
           config,
         });
+        // Op dev staat er ook een openmotics-home dashboard met dezelfde
+        // ruimte-views: die meesorteren zodat beide tab-rijen gelijk lopen.
+        if (urlPath !== "openmotics-home") {
+          try {
+            const om = await this._hass.connection.sendMessagePromise({
+              type: "lovelace/config",
+              url_path: "openmotics-home",
+            });
+            const omGrid = om.views && om.views[0] && om.views[0].cards
+              && om.views[0].cards[0];
+            if (omGrid && omGrid.type === "custom:renson-smartliving-rooms-grid") {
+              omGrid.rooms = this._rooms;
+              const omFirst = om.views[0];
+              const omRest = om.views.slice(1);
+              const omBy = new Map(omRest.map((v) => [v.path, v]));
+              const omSorted = order.map((p2) => omBy.get(p2)).filter(Boolean);
+              const omLeft = omRest.filter((v) => !order.includes(v.path));
+              om.views = [omFirst, ...omSorted, ...omLeft];
+              await this._hass.connection.sendMessagePromise({
+                type: "lovelace/config/save",
+                url_path: "openmotics-home",
+                config: om,
+              });
+            }
+          } catch (err2) {
+            // openmotics-home bestaat mogelijk niet (bv. prod): stil negeren
+          }
+        }
       }
     } catch (err) {
       // order blijft lokaal bewaard tot een volgende save slaagt
