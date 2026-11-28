@@ -8,6 +8,8 @@
 const STRINGS = {
   en: {
     target: "target",
+    auto: "Auto",
+    manual: "Manual",
     configure_schedule: "Configure schedule",
     weekly_schedule: "Weekly schedule",
     now: "now",
@@ -35,6 +37,8 @@ const STRINGS = {
   },
   nl: {
     target: "doel",
+    auto: "Auto",
+    manual: "Handmatig",
     configure_schedule: "Schema instellen",
     weekly_schedule: "Weekschema",
     now: "nu",

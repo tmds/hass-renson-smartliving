@@ -66,6 +66,23 @@ class RensonThermostatCard extends HTMLElement {
         .temps { display: flex; align-items: baseline; gap: 6px; }
         .cur { font-size: 1.6em; font-weight: 700; color: var(--primary-text-color); }
         .tgt { font-size: .85em; color: var(--secondary-text-color); }
+        .presets {
+          margin-top: 10px; display: flex; gap: 4px;
+          background: var(--secondary-background-color);
+          border: 1px solid var(--divider-color);
+          border-radius: 12px; padding: 3px;
+        }
+        .presets button {
+          flex: 1; border: none; background: transparent;
+          color: var(--primary-text-color);
+          border-radius: 9px; padding: 7px 0;
+          cursor: pointer; font-size: .82em; font-weight: 600;
+          font-family: inherit; transition: background .15s ease, color .15s ease;
+        }
+        .presets button.active {
+          background: var(--primary-color); color: var(--text-on-primary, #fff);
+        }
+        .presets button:not(.active):hover { filter: brightness(1.05); }
         .cfg-btn {
           margin-top: 12px; width: 100%;
           border: 1px solid var(--divider-color);
@@ -132,6 +149,11 @@ class RensonThermostatCard extends HTMLElement {
           </div>
           <div class="axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
         </div>
+        <div class="presets">
+          <button class="preset" data-preset="auto"></button>
+          <button class="preset" data-preset="away"></button>
+          <button class="preset" data-preset="none"></button>
+        </div>
         <button class="cfg-btn">${t(this._lang, "configure_schedule")}</button>
         <div class="overlay" style="display:none">
           <div class="dialog">
@@ -163,6 +185,15 @@ class RensonThermostatCard extends HTMLElement {
     this.renderRoot.querySelector(".close").addEventListener("click", () => {
       overlay.style.display = "none";
       this._open = false;
+    });
+    this.renderRoot.querySelectorAll(".preset").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!this._hass) return;
+        this._hass.callService("climate", "set_preset_mode", {
+          entity_id: this._config.entity,
+          preset_mode: btn.dataset.preset,
+        });
+      });
     });
     this._renderSummary();
   }
@@ -239,7 +270,20 @@ class RensonThermostatCard extends HTMLElement {
       `${this._fmtTemp(attrs.current_temperature)}\u00B0`;
     this.renderRoot.querySelector(".tgt").textContent =
       `\u2192 ${this._fmtTemp(attrs.temperature)}\u00B0`;
+    this._renderPresets(attrs);
     this._renderHeatmap(entity);
+  }
+
+  _renderPresets(attrs) {
+    const active = attrs.preset_mode === "auto" || attrs.preset_mode === "away"
+      ? attrs.preset_mode
+      : "none";
+    this.renderRoot.querySelectorAll(".preset").forEach((btn) => {
+      const preset = btn.dataset.preset;
+      btn.classList.toggle("active", preset === active);
+      const key = preset === "none" ? "manual" : preset;
+      btn.textContent = t(this._lang, key);
+    });
   }
 }
 
