@@ -7,7 +7,7 @@
  *   type: custom:renson-smartliving-schedule-button
  *   entity: climate.praktijk
  */
-import { t, openDialog } from "./renson-smartliving-common.js?v=0.2.4";
+import { t, openDialog, scheduleStripCSS, scheduleStripHTML } from "./renson-smartliving-common.js?v=0.2.4";
 
 class RensonScheduleButton extends HTMLElement {
   static getStubConfig() {
@@ -21,9 +21,18 @@ class RensonScheduleButton extends HTMLElement {
       this._lang = lang;
       this._renderShell();
     }
+    this._renderStrip();
     if (this._overlay && this._overlay.isConnected && this._editor) {
       this._editor.hass = hass;
     }
+  }
+
+  _renderStrip() {
+    if (!this.renderRoot || !this._hass) return;
+    const strip = this.renderRoot.querySelector(".mini");
+    if (!strip) return;
+    const entity = this._hass.states[this._config.entity];
+    strip.innerHTML = scheduleStripHTML(entity, { labels: false });
   }
 
   setConfig(config) {
@@ -45,6 +54,7 @@ class RensonScheduleButton extends HTMLElement {
     this.renderRoot.innerHTML = `
       <style>
         :host { display: block; }
+        ${scheduleStripCSS()}
         button {
           width: 100%;
           border: 1px solid var(--divider-color);
@@ -53,11 +63,19 @@ class RensonScheduleButton extends HTMLElement {
           border-radius: 12px; padding: 10px 14px;
           cursor: pointer; font-size: .9em; font-weight: 600;
           font-family: inherit; transition: filter .15s ease, border-color .15s ease;
+          display: flex; flex-direction: column; gap: 7px; align-items: stretch;
         }
         button:hover { filter: brightness(1.05); border-color: var(--primary-color); }
+        .mini .schedbar { height: 8px; border-radius: 4px; }
+        .mini .schedhover { display: none; }
+        .mini .nowmark { width: 2px; }
       </style>
-      <button>${t(this._lang, "configure_schedule")}</button>
+      <button>
+        <span>${t(this._lang, "configure_schedule")}</span>
+        <span class="mini"></span>
+      </button>
     `;
+    this._renderStrip();
     this.renderRoot.querySelector("button").addEventListener("click", () => {
       // Zelfde dialog als in het control panel (gateway-config card):
       // wide + ingesloten editor met de panel-padding.

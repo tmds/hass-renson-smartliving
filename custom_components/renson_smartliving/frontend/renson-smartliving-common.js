@@ -580,8 +580,9 @@ function _hhmm(sec) {
   return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
 
-export function scheduleStripHTML(entity) {
+export function scheduleStripHTML(entity, opts = {}) {
   const attrs = (entity && entity.attributes) || {};
+  const compact = opts.labels === false;
   const src = attrs.heating_schedule || {};
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
   const today = dayKeys[(new Date().getDay() + 6) % 7];
@@ -594,7 +595,9 @@ export function scheduleStripHTML(entity) {
     const cls = [h % 2 ? "odd" : "", h % 6 === 0 ? "q" : ""].filter(Boolean).join(" ");
     hours.push(`<span class="${cls}" style="left:${((h / 24) * 100).toFixed(3)}%">${String(h).padStart(2, "0")}</span>`);
   }
-  const labels = `<div class="schedlabels">${hours.join("")}</div>`;
+  const labels = compact
+    ? ""
+    : `<div class="schedlabels">${hours.join("")}</div>`;
   if (!setpoints.length) {
     return `<div class="schedwrap"><div class="schedbar"><div class="sched"></div></div>${labels}</div>`;
   }
