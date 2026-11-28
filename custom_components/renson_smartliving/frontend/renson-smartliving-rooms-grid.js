@@ -403,8 +403,14 @@ class RensonRoomsGrid extends HTMLElement {
 
   async _persistOrder() {
     try {
+      // De grid kan op een eigen dashboard staan (bv. openmotics-home):
+      // zonder url_path leest/slaat HA het STANDAARD-dashboard op en faalt
+      // de type-check stil (niets wordt opgeslaan, ook de tabs niet).
+      const seg = window.location.pathname.split("/")[1];
+      const urlPath = seg && seg !== "lovelace" ? seg : undefined;
       const config = await this._hass.connection.sendMessagePromise({
         type: "lovelace/config",
+        url_path: urlPath,
       });
       const view = config.views && config.views[0];
       const card = view && view.cards && view.cards[0];
@@ -415,7 +421,9 @@ class RensonRoomsGrid extends HTMLElement {
         // views die niet in de kamerlijst staan (bv. extra dashboards)
         // blijven achteraan in hun onderlinge volgorde staan.
         // Tile-paths hebben de vorm "/lovelace/<path>", view.path alleen "<path>".
-        const norm = (p) => String(p).replace(/^\/lovelace\//, "");
+        // tile-paths kunnen /lovelace/<path> OF /<dashboard>/<path> zijn;
+        // het laatste segment is de view.path
+        const norm = (p) => String(p).split("/").filter(Boolean).pop() || "";
         const order = this._rooms.map((r) => norm(r.path));
         const first = config.views[0];
         const rest = config.views.slice(1);
@@ -425,6 +433,7 @@ class RensonRoomsGrid extends HTMLElement {
         config.views = [first, ...sorted, ...leftovers];
         await this._hass.connection.sendMessagePromise({
           type: "lovelace/config/save",
+          url_path: urlPath,
           config,
         });
       }
